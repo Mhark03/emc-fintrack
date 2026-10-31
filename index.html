@@ -1,0 +1,2640 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMC-FinTrack | Financial Transparency System - Eastern Mindoro College</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- JSZip Library para sa pag-download ng ZIP file -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- SOCKET.IO CLIENT SCRIPT -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        emc: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#16a34a', 600: '#15803d', 700: '#166534', dark: '#064e3b' }
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes tabFadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: tabFadeIn 0.35s ease-out forwards; }
+        @keyframes bounceDot {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-bounce-dot-1 { animation: bounceDot 0.6s infinite ease-in-out; }
+        .animate-bounce-dot-2 { animation: bounceDot 0.6s infinite ease-in-out 0.15s; }
+        .animate-bounce-dot-3 { animation: bounceDot 0.6s infinite ease-in-out 0.3s; }
+
+        @keyframes skeletonPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .skeleton-loader { animation: skeletonPulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        .card-hover-anim {
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+        .card-hover-anim:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans text-slate-800 bg-slate-100 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
+
+<!-- AUTHENTICATION MODAL (LOGIN / SIGNUP) -->
+<div id="auth-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 dark:border dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-8 border border-slate-100 animate-fade-in">
+        <div class="text-center mb-6">
+            <div id="login-logo-container" class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-900 text-white mb-3 shadow-inner border-2 border-emc-600 overflow-hidden">
+                <i class="fa-solid fa-graduation-cap text-2xl"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white">EMC-FinTrack Portal</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Eastern Mindoro College, Inc. • Financial Transparency</p>
+        </div>
+
+        <div class="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-1 mb-6">
+            <button onclick="switchAuthTab('login')" id="tab-login" class="flex-1 py-2 text-xs font-bold rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm transition-all">Sign In</button>
+            <button onclick="switchAuthTab('signup')" id="tab-signup" class="flex-1 py-2 text-xs font-bold rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-all">Student Registration</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Institutional Email</label>
+                <input type="email" id="login-email" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emc-600 text-sm" placeholder="user@emc.edu.ph">
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Password</label>
+                <div class="relative">
+                    <input type="password" id="login-password" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emc-600 text-sm pr-10" placeholder="••••••••">
+                    <button type="button" onclick="togglePasswordVisibility('login-password', 'login-eye-icon')" class="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none">
+                        <i id="login-eye-icon" class="fa-solid fa-eye text-sm"></i>
+                    </button>
+                </div>
+            </div>
+            <p id="login-error" class="text-xs text-rose-600 font-semibold hidden"><i class="fa-solid fa-triangle-exclamation"></i> Invalid email, incorrect password, or account pending approval.</p>
+            <button type="submit" class="w-full py-3 bg-emc-600 hover:bg-emc-700 text-white font-bold rounded-lg shadow-md transition-all text-sm">Sign In</button>
+        </form>
+
+        <!-- SIGN UP FORM -->
+        <form id="form-signup" onsubmit="handleSignup(event)" class="space-y-4 hidden">
+            <div class="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 p-2.5 rounded-lg text-xs text-amber-800 dark:text-amber-300">
+                <i class="fa-solid fa-circle-info"></i> <strong>Approval Required:</strong> Student & Student Leader registrations require adviser verification.
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Full Name</label>
+                <input type="text" id="signup-name" required class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm" placeholder="Juan Dela Cruz">
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Program / Department</label>
+                    <select id="signup-program" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs bg-white dark:bg-slate-800">
+                        <option value="BSIS">BSIS - Information Systems</option>
+                        <option value="BSCRIM">BSCRIM - Criminology</option>
+                        <option value="BSBA">BSBA - Business Administration</option>
+                        <option value="BSED/BEED">BSED/BEED - Education</option>
+                        <option value="STUDENT COUNCIL">STUDENT COUNCIL</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Account Role</label>
+                    <select id="signup-role-type" required class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs bg-white dark:bg-slate-800 font-bold text-emc-600">
+                        <option value="student">Student Member</option>
+                        <option value="leader">Student Leader (Officer)</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Student Email</label>
+                <input type="email" id="signup-email" required class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm" placeholder="student@emc.edu.ph">
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Password</label>
+                <input type="password" id="signup-password" required class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm" placeholder="••••••••">
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Confirm Password</label>
+                <input type="password" id="signup-confirm-password" required class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm" placeholder="••••••••">
+            </div>
+            <button type="submit" class="w-full py-3 bg-emc-600 hover:bg-emc-700 text-white font-bold rounded-lg shadow-md transition-all text-sm">Submit Registration for Approval</button>
+        </form>
+    </div>
+</div>
+
+<!-- MAIN APP WRAPPER -->
+<div id="main-app" class="hidden flex-1 flex flex-col">
+    <!-- HEADER -->
+    <header class="bg-slate-900 text-white shadow-md border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:h-20 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
+                <div class="flex items-center space-x-3">
+                    <div class="flex flex-col items-center">
+                        <div id="header-logo-container" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white flex items-center justify-center font-bold text-slate-900 shadow border border-emc-600 overflow-hidden shrink-0">
+                            <i class="fa-solid fa-graduation-cap"></i>
+                        </div>
+                        <div id="admin-logo-upload-wrapper" class="hidden mt-1">
+                            <label class="text-[9px] text-emc-400 hover:text-white cursor-pointer font-semibold underline whitespace-nowrap">
+                                <i class="fa-solid fa-camera"></i> Change Logo 
+                                <input type="file" id="logo-file-input" accept="image/*" onchange="handleLogoUpload(event)" class="hidden">
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-sm sm:text-base leading-tight tracking-wide">EMC-FinTrack</h1>
+                        <p class="text-[10px] sm:text-xs text-slate-400">Eastern Mindoro College, Inc.</p>
+                    </div>
+                </div>
+                <div class="flex sm:hidden items-center space-x-2">
+                    <button onclick="refreshSystemData()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 shadow" title="Refresh System">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                    <button onclick="handleLogout()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700" title="Logout">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="hidden sm:flex items-center space-x-4">
+                <div class="text-right">
+                    <span id="user-display-name" class="block text-sm font-semibold text-slate-200">User Name</span>
+                    <div class="flex items-center justify-end gap-1.5 mt-0.5">
+                        <span id="user-display-role" class="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-emc-600/30 text-emc-400 rounded border border-emc-600/40">Role</span>
+                        <span id="user-dept-badge" class="inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-600/30 text-blue-300 rounded border border-blue-600/40">Dept</span>
+                    </div>
+                </div>
+                <button onclick="refreshSystemData()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 transition-all flex items-center gap-1.5 shadow active:scale-95">
+                    <i class="fa-solid fa-rotate"></i> Refresh System
+                </button>
+                <button onclick="handleLogout()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="bg-white dark:bg-slate-900 dark:border-slate-800 border-b border-slate-200 shadow-sm sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 flex space-x-2 sm:space-x-6 overflow-x-auto no-scrollbar">
+            <button onclick="switchTabContent('dashboard')" id="nav-dashboard" class="tab-btn py-3 px-3 sm:px-1 border-b-2 border-emc-600 text-emc-600 font-semibold text-sm flex items-center gap-2 shrink-0 group transition-all" title="Dashboard">
+                <i class="fa-solid fa-chart-pie text-base sm:text-sm"></i>
+                <span class="inline sm:inline text-xs sm:text-sm">Dashboard</span>
+            </button>
+            <button onclick="switchTabContent('ledgers')" id="nav-ledgers" class="tab-btn py-3 px-3 sm:px-1 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-semibold text-sm flex items-center gap-2 shrink-0 group transition-all" title="Organizations & Ledgers">
+                <i class="fa-solid fa-book text-base sm:text-sm"></i>
+                <span class="inline sm:inline text-xs sm:text-sm">Organizations & Ledgers</span>
+            </button>
+            <button onclick="switchTabContent('upload')" id="nav-upload" class="tab-btn role-leader role-adviser py-3 px-3 sm:px-1 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-semibold text-sm flex items-center gap-2 hidden shrink-0 group transition-all" title="Upload Expense / Funds">
+                <i class="fa-solid fa-receipt text-base sm:text-sm"></i>
+                <span class="inline sm:inline text-xs sm:text-sm">Upload Expense / Funds</span>
+            </button>
+            <button onclick="switchTabContent('audit')" id="nav-audit" class="tab-btn role-adviser role-leader py-3 px-3 sm:px-1 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-semibold text-sm flex items-center gap-2 hidden shrink-0 group transition-all" title="Audit & Verification">
+                <i class="fa-solid fa-shield-halved text-base sm:text-sm"></i>
+                <span class="inline sm:inline text-xs sm:text-sm">Audit & Verification</span>
+            </button>
+            <button onclick="switchTabContent('messages')" id="nav-messages" class="tab-btn py-3 px-3 sm:px-1 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-semibold text-sm flex items-center gap-2 shrink-0 group transition-all" title="Message Inbox">
+                <i class="fa-solid fa-envelope text-base sm:text-sm"></i>
+                <span class="inline sm:inline text-xs sm:text-sm">Message Inbox</span>
+            </button>
+            <button onclick="switchTabContent('research')" id="nav-research" class="tab-btn py-3 px-3 sm:px-1 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white font-semibold text-sm flex items-center gap-2 shrink-0 group transition-all" title="Research & Proposal Info">
+                <i class="fa-solid fa-file-lines text-base sm:text-sm"></i>
+                <span class="inline sm:inline text-xs sm:text-sm">Research & Proposal Info</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 overflow-y-auto">
+
+        <!-- 1. DASHBOARD TAB -->
+        <section id="content-dashboard" class="space-y-6 animate-fade-in">
+            <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-900 dark:to-slate-950 rounded-2xl p-4 sm:p-6 text-white shadow-md relative overflow-hidden border border-slate-700 card-hover-anim">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="px-2.5 py-1 bg-emc-600 text-white font-bold text-[10px] rounded-full uppercase tracking-wider">Official Announcements</span>
+                        <span class="text-[11px] text-slate-400">Updated Real-Time</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                        <button onclick="toggleDarkMode()" id="btn-dark-mode" class="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-all flex items-center gap-1.5 shadow">
+                            <i id="dark-mode-icon" class="fa-solid fa-sun text-amber-400"></i> <span id="dark-mode-text">Light Mode</span>
+                        </button>
+                        <button onclick="toggleAnnouncementsCollapse()" id="btn-toggle-ann" class="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-700 transition-all flex items-center gap-1.5">
+                            <i id="ann-arrow-icon" class="fa-solid fa-chevron-down"></i> <span id="ann-toggle-text">Expand</span>
+                        </button>
+                        <button id="btn-post-announcement" onclick="openAnnouncementModal()" class="role-leader role-adviser hidden px-3 py-1.5 bg-emc-600 hover:bg-emc-700 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-bullhorn"></i> Post
+                        </button>
+                    </div>
+                </div>
+
+                <div id="announcements-wrapper" class="max-h-36 overflow-y-auto pr-1 space-y-3 transition-all duration-300">
+                    <div id="announcements-container" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <!-- Departmental & Council Budget Cards Container (2 Column Grid) -->
+            <div id="dashboard-main-skeleton-wrapper" class="space-y-6">
+                <div id="budget-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-white dark:bg-slate-900 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2 card-hover-anim">
+                        <h3 id="chart-title" class="font-bold text-slate-800 dark:text-white mb-4 text-sm sm:text-base">Departmental & Council Budget Utilization</h3>
+                        <canvas id="budgetChart" height="120"></canvas>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between card-hover-anim">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <h3 class="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Transparency Index</h3>
+                                <span id="overall-transparency-badge" class="px-2 py-0.5 bg-emc-50 dark:bg-emc-950/50 text-emc-700 dark:text-emc-300 font-bold text-xs rounded-full">100%</span>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                                <strong>Purpose & Mechanics:</strong> Evaluates compliance and accountability based on verified official receipts and fund reporting ratio.
+                            </p>
+                            <div id="transparency-index-container" class="space-y-3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EXPENSE CATEGORY BREAKDOWN PER DEPARTMENT & COUNCIL -->
+                <div class="bg-white dark:bg-slate-900 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 card-hover-anim space-y-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 dark:text-white text-base sm:text-lg">Departmental & Council Expense Category Breakdown</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Detailed expenditure distribution breakdown per department and student council.</p>
+                        </div>
+                    </div>
+
+                    <div id="department-graphs-container" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <!-- RECENT TRANSACTION HISTORY SIDE-BY-SIDE -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white dark:bg-slate-900 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 card-hover-anim flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <h3 class="font-bold text-slate-800 dark:text-white text-sm sm:text-base">Overall Expense Categories Summary</h3>
+                            <span id="category-count-badge" class="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-full">0 Categories</span>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-6">Overall distribution across all campus organizations</p>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                            <div class="flex justify-center max-w-[200px] mx-auto w-full">
+                                <canvas id="categoryDoughnutChart"></canvas>
+                            </div>
+                            <div class="space-y-3">
+                                <div id="category-legend-container" class="space-y-2 text-xs"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between text-xs text-slate-500">
+                        <span id="category-highest-text">Highest Expense: None</span>
+                        <span class="text-emc-600 font-bold">Verified Audit</span>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 card-hover-anim flex flex-col">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-bold text-slate-800 dark:text-white text-sm sm:text-base flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-emc-600"></i> Recent Transaction History
+                        </h3>
+                        <span class="text-[11px] text-slate-400">Live Audit Feed</span>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Latest recorded inflows and verified or pending expense items.</p>
+                    
+                    <div class="max-h-56 overflow-y-auto pr-1 space-y-2.5" id="dashboard-recent-history-container"></div>
+                </div>
+            </div>
+
+            <!-- ADMIN BACK TO ZERO FUNDS CONTROLS -->
+            <div id="admin-reset-funds-panel" class="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-2xl p-4 sm:p-5 shadow-sm hidden card-hover-anim">
+                <h3 class="font-bold text-rose-900 dark:text-rose-300 mb-2 flex items-center gap-2 text-sm sm:text-base"><i class="fa-solid fa-triangle-exclamation"></i> Administrator Fund Reset Controls (Back to Zero)</h3>
+                <p class="text-xs text-rose-700 dark:text-rose-400 mb-4">Warning: This action will permanently clear and reset department & council fund balances to ₱0.00 with confirmation audit trails.</p>
+                <div class="flex flex-wrap gap-2 sm:gap-3">
+                    <button onclick="resetDepartmentFunds('BSIS')" class="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow">Reset BSIS</button>
+                    <button onclick="resetDepartmentFunds('BSCRIM')" class="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow">Reset BSCRIM</button>
+                    <button onclick="resetDepartmentFunds('BSBA')" class="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow">Reset BSBA</button>
+                    <button onclick="resetDepartmentFunds('BSED/BEED')" class="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow">Reset BSED/BEED</button>
+                    <button onclick="resetDepartmentFunds('STUDENT COUNCIL')" class="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow">Reset Council</button>
+                    <button onclick="resetDepartmentFunds('ALL')" class="px-3 py-2 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-lg shadow">Reset ALL</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. LEDGERS TAB -->
+        <section id="content-ledgers" class="space-y-6 hidden">
+            <div class="bg-white dark:bg-slate-900 dark:border-slate-800 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h3 class="font-bold text-slate-800 dark:text-white text-base sm:text-lg">Student Organization & Council Financial Ledgers</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Filter line-item expenses and access verifiable digital receipt copies.</p>
+                        </div>
+                        <button onclick="exportLedgerZIP()" class="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-file-zipper text-emc-600"></i> <span>Export All Ledger (ZIP)</span>
+                        </button>
+                    </div>
+
+                    <!-- LEDGER FILTER CONTROLS -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        <div>
+                            <select id="filter-org" onchange="renderLedgerAndAudit()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs bg-white dark:bg-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emc-600">
+                                <option value="ALL">All Organizations / Departments / Councils</option>
+                                <option value="BSIS">BSIS - InfoSys Society</option>
+                                <option value="BSCRIM">BSCRIM - Criminology</option>
+                                <option value="BSBA">BSBA - Business Executives</option>
+                                <option value="BSED/BEED">BSED/BEED - Educators Guild</option>
+                                <option value="STUDENT COUNCIL">STUDENT COUNCIL</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="filter-category" onchange="renderLedgerAndAudit()" class="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs bg-white dark:bg-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emc-600">
+                                <option value="ALL">All Categories</option>
+                                <option value="Refreshments">Refreshments & Catering</option>
+                                <option value="Printing">Printing & Marketing</option>
+                                <option value="Equipment">Equipment & Rentals</option>
+                                <option value="Supplies">Supplies & Materials</option>
+                                <option value="Fund Inflow">Fund Inflow</option>
+                            </select>
+                        </div>
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-xs text-slate-400"></i>
+                            <input type="text" id="filter-search" onkeyup="renderLedgerAndAudit()" placeholder="Search title or OR..." class="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emc-600">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[600px]">
+                        <thead>
+                            <tr class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                                <th class="p-3 sm:p-4">TRX ID / DATE</th>
+                                <th class="p-3 sm:p-4">ORGANIZATION / COUNCIL</th>
+                                <th class="p-3 sm:p-4">EXPENSE PARTICULARS</th>
+                                <th class="p-3 sm:p-4">CATEGORY</th>
+                                <th class="p-3 sm:p-4">AMOUNT</th>
+                                <th class="p-3 sm:p-4">RECEIPT PROOF</th>
+                                <th class="p-3 sm:p-4">STATUS</th>
+                                <th id="ledger-action-header" class="p-3 sm:p-4 hidden">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledger-table-body" class="divide-y divide-slate-100 dark:divide-slate-800 text-xs sm:text-sm text-slate-700 dark:text-slate-300"></tbody>
+                    </table>
+                </div>
+                <div class="p-3.5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500">
+                    <span id="ledger-count-footer">Displaying 0 transaction entries</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. UPLOAD EXPENSE / FUND ADDITION TAB -->
+        <section id="content-upload" class="space-y-6 hidden">
+            <div class="bg-white dark:bg-slate-900 dark:border-slate-800 rounded-2xl shadow-sm border border-slate-200 max-w-2xl mx-auto p-5 sm:p-8">
+                <h3 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-1">Upload Expense or Add Funds</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-6">Restricted to Student Leaders and Faculty Advisers.</p>
+                
+                <form onsubmit="submitTransaction(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Transaction Type</label>
+                            <select id="upload-type" onchange="toggleTransactionType()" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm bg-white dark:bg-slate-800 font-semibold text-emc-600">
+                                <option value="Expense">Expense (Deduction)</option>
+                                <option value="FundAddition">Fund Addition (Inflow)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Program / Department / Council</label>
+                            <select id="upload-program" required class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm bg-white dark:bg-slate-800">
+                                <option value="BSIS">BSIS - InfoSys Society</option>
+                                <option value="BSCRIM">BSCRIM - Criminology</option>
+                                <option value="BSBA">BSBA - Business Administration</option>
+                                <option value="BSED/BEED">BSED/BEED - Education</option>
+                                <option value="STUDENT COUNCIL">STUDENT COUNCIL</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="expense-fields-group">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Expense Category</label>
+                                <select id="upload-category" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm bg-white dark:bg-slate-800">
+                                    <option value="Refreshments">Refreshments & Catering</option>
+                                    <option value="Printing">Printing & Marketing</option>
+                                    <option value="Equipment">Equipment & Rentals</option>
+                                    <option value="Supplies">Supplies & Materials</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Official Receipt (OR) Number</label>
+                                <input type="text" id="upload-or" placeholder="OR-XXXXX" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label id="label-particulars" class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Particulars / Item Description</label>
+                        <input type="text" id="upload-particulars" required placeholder="e.g. Semestral Assembly Tarpaulin" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Total Amount (PHP)</label>
+                            <input type="number" id="upload-amount" step="0.01" required placeholder="0.00" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm">
+                        </div>
+                        <div id="file-field-wrapper">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Attach Receipt / Proof (Image/PDF)</label>
+                            <input type="file" id="expense-file" class="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emc-50 file:text-emc-700 hover:file:bg-emc-100">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full py-3 bg-emc-600 hover:bg-emc-700 text-white font-bold rounded-lg shadow transition-all text-sm mt-6">Submit Transaction Entry</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- 4. AUDIT TAB -->
+        <section id="content-audit" class="space-y-6 hidden">
+            <div class="bg-white dark:bg-slate-900 dark:border-slate-800 rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-8 space-y-8">
+                
+                <!-- 1. FACULTY AUDIT & VERIFICATION QUEUE -->
+                <div>
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                        <div>
+                            <h3 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white" id="audit-queue-title">Faculty Audit & Verification Queue</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400" id="audit-queue-subtitle">Review pending expense and fund addition submissions from student leaders.</p>
+                        </div>
+                        <span id="pending-count-badge" class="px-3 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900 font-bold text-xs rounded-full">0 Pending Submissions</span>
+                    </div>
+                    <div id="audit-list" class="space-y-4 max-h-[420px] overflow-y-auto pr-2"></div>
+                </div>
+
+                <hr id="audit-divider" class="border-slate-200 dark:border-slate-800 advisor-admin-only">
+
+                <!-- 2. STUDENT ACCOUNT REGISTRATIONS -->
+                <div id="student-approvals-wrapper" class="advisor-admin-only">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                        <div>
+                            <h3 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Student & Student Leader Account Registrations</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Review and confirm student and leader registrations (with adviser verification) before granting portal access.</p>
+                        </div>
+                        <span id="student-pending-badge" class="px-3 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900 font-bold text-xs rounded-full">0 Pending Users</span>
+                    </div>
+                    <div class="overflow-x-auto max-h-[380px] overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl pr-1">
+                        <table class="w-full text-left text-xs sm:text-sm text-slate-700 dark:text-slate-300 border-collapse min-w-[500px]">
+                            <thead class="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase text-slate-500 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-3 sm:px-4 py-3 bg-slate-50 dark:bg-slate-800">Name</th>
+                                    <th class="px-3 sm:px-4 py-3 bg-slate-50 dark:bg-slate-800">Email</th>
+                                    <th class="px-3 sm:px-4 py-3 bg-slate-50 dark:bg-slate-800">Program / Council</th>
+                                    <th class="px-3 sm:px-4 py-3 bg-slate-50 dark:bg-slate-800">Role</th>
+                                    <th class="px-3 sm:px-4 py-3 bg-slate-50 dark:bg-slate-800">Status</th>
+                                    <th class="px-3 sm:px-4 py-3 bg-slate-50 dark:bg-slate-800">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="approval-table-body" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+<!-- 5. MESSAGE INBOX TAB -->
+<section id="content-messages" class="space-y-6">
+    <style>
+        #content-messages * {
+            -webkit-tap-highlight-color: transparent !important;
+            -webkit-touch-callout: none !important;
+        }
+        #content-messages input:focus, 
+        #content-messages button:focus, 
+        #content-messages div:focus {
+            outline: none !important;
+            box-shadow: none !important;
+        }
+    </style>
+    <div class="bg-slate-900 dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-800 overflow-hidden flex flex-col md:flex-row h-[75vh] max-h-[85vh]">
+        <!-- Contacts Panel (Dark) -->
+        <div id="msg-contacts-panel" class="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950 flex flex-col h-full shrink-0">
+            <div class="p-4 border-b border-slate-800 bg-slate-900 space-y-3 relative">
+                <h3 class="font-bold text-white text-sm flex items-center gap-2.5">
+                    <div class="p-2 rounded-xl bg-emc-500/10 text-emc-400">
+                        <i class="fa-solid fa-comments text-sm"></i>
+                    </div>
+                    Direct Messages
+                </h3>
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-xs text-slate-400"></i>
+                    <input type="text" id="user-search-input" onkeyup="filterUserSearch()" placeholder="Search user or email..." class="w-full pl-9 pr-3.5 py-2 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs focus:outline-none focus:ring-2 focus:ring-emc-600 transition-all">
+                    <div id="search-results-dropdown" class="absolute left-0 right-0 top-11 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto hidden z-30 divide-y divide-slate-800"></div>
+                </div>
+            </div>
+            <div class="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-900/50 border-b border-slate-800">
+                Active Conversations
+            </div>
+            <div id="contacts-list" class="flex-1 overflow-y-auto p-2.5 space-y-1.5"></div>
+        </div>
+
+        <!-- Chat Panel (Dark) -->
+        <div id="msg-chat-panel" class="flex-1 flex flex-col h-full bg-slate-900 relative hidden md:flex overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-800 bg-slate-900 flex items-center justify-between shadow-sm z-10 shrink-0">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleMobileMsgView(true)" class="md:hidden px-2.5 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold focus:outline-none">
+                        <i class="fa-solid fa-arrow-left"></i> Back
+                    </button>
+                    <div>
+                        <h4 id="active-chat-title" class="font-bold text-white text-sm tracking-tight">Select or search a user to start messaging</h4>
+                        <span id="active-chat-subtitle" class="text-[11px] text-slate-400 block mt-0.5">Private & Confidential Institutional Direct Message</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Scrollable Area (Dark Background) -->
+            <div id="chat-messages-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-950">
+                <div class="flex flex-col items-center justify-center h-full text-slate-400 text-xs space-y-2">
+                    <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 mb-1 shadow-inner">
+                        <i class="fa-solid fa-paper-plane text-lg"></i>
+                    </div>
+                    <p class="font-medium text-slate-300">No active conversation selected.</p>
+                    <p class="text-[11px] text-slate-500">Use the search bar on the left panel to find and start chatting with colleagues.</p>
+                </div>
+            </div>
+
+            <!-- Input Bar (Dark) -->
+            <form onsubmit="sendPrivateMessage(event)" class="p-3 sm:p-4 border-t border-slate-800 bg-slate-900 flex gap-2 items-center shadow-lg shrink-0">
+                <input type="text" id="chat-input" placeholder="Type your private message..." class="flex-1 px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs focus:outline-none focus:ring-2 focus:ring-emc-600 transition-all" required autocomplete="off">
+                <button type="submit" class="px-5 py-2.5 bg-emc-600 hover:bg-emc-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 active:scale-95 shrink-0 focus:outline-none">
+                    <span>Send</span> <i class="fa-solid fa-paper-plane text-[10px]"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</section>
+
+      
+        <!-- 6. RESEARCH & PROPOSAL INFO TAB -->
+        <section id="content-research" class="space-y-6 hidden">
+            <div class="bg-slate-900 text-white rounded-2xl p-5 sm:p-8 shadow-md border border-slate-800 relative overflow-hidden space-y-6 card-hover-anim">
+                <div class="inline-block px-3 py-1 bg-amber-600 text-white font-bold text-xs rounded-full uppercase tracking-wider">
+                    BS Information System Research Proposal
+                </div>
+                <div>
+                    <h2 class="text-lg sm:text-2xl font-extrabold tracking-tight text-white leading-snug">
+                        EMC-FINTRACK: A Web-Based Financial Transparency System for Student Organizations on EMC Campus
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-2">In Partial Fulfillment of Requirements for Enterprise Architecture & Enterprise System with Feasibility Study</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-800 text-xs">
+                    <div>
+                        <span class="text-slate-400 block uppercase font-bold text-[10px]">Researcher:</span>
+                        <span class="font-bold text-white text-sm">MARK ANTHONY A. ACUZAR</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block uppercase font-bold text-[10px]">Institution:</span>
+                        <span class="font-bold text-white text-sm">Eastern Mindoro College, Inc.</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block uppercase font-bold text-[10px]">Date of Presentation:</span>
+                        <span class="font-bold text-emc-400 text-sm">October 25, 2026</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 dark:border-slate-800 rounded-2xl p-5 sm:p-8 shadow-sm border border-slate-200 space-y-8">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">1. Conceptual Framework (IPO Model)</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Visual representation of Inputs, Development Processes, and Final System Outputs</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="border border-slate-200 dark:border-slate-800 rounded-xl p-5 bg-slate-50/50 dark:bg-slate-950/40 space-y-4 card-hover-anim">
+                        <span class="px-3 py-1 bg-slate-900 text-white font-bold text-[10px] rounded-full uppercase tracking-wider">INPUT</span>
+                        <div class="space-y-3 text-xs text-slate-700 dark:text-slate-300">
+                            <div>
+                                <strong class="text-slate-900 dark:text-white flex items-center gap-1.5"><i class="fa-solid fa-check text-emc-600"></i> Respondent Profiles:</strong>
+                                <p class="text-slate-500 dark:text-slate-400 pl-5 mt-0.5">Year level, Course/Dept, Org Membership.</p>
+                            </div>
+                            <div>
+                                <strong class="text-slate-900 dark:text-white flex items-center gap-1.5"><i class="fa-solid fa-check text-emc-600"></i> Functional Requirements:</strong>
+                                <p class="text-slate-500 dark:text-slate-400 pl-5 mt-0.5">Transaction & Receipt Uploading, Real-time Dashboard, Role-based Security.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border border-amber-200 dark:border-amber-900 rounded-xl p-5 bg-amber-50/30 dark:bg-amber-950/20 space-y-4 card-hover-anim">
+                        <span class="px-3 py-1 bg-amber-600 text-white font-bold text-[10px] rounded-full uppercase tracking-wider">PROCESS</span>
+                        <div class="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                            <div class="flex items-start gap-2"><i class="fa-solid fa-gear text-amber-600 mt-0.5"></i> <span>System Requirements Analysis</span></div>
+                            <div class="flex items-start gap-2"><i class="fa-solid fa-gear text-amber-600 mt-0.5"></i> <span>System Architecture & UI/UX Design</span></div>
+                            <div class="flex items-start gap-2"><i class="fa-solid fa-gear text-amber-600 mt-0.5"></i> <span>Full-Stack Development (Frontend & DB)</span></div>
+                            <div class="flex items-start gap-2"><i class="fa-solid fa-gear text-amber-600 mt-0.5"></i> <span>Deployment & Usability Testing</span></div>
+                        </div>
+                    </div>
+
+                    <div class="border border-blue-200 dark:border-blue-900 rounded-xl p-5 bg-blue-50/30 dark:bg-blue-950/20 space-y-4 card-hover-anim">
+                        <span class="px-3 py-1 bg-blue-600 text-white font-bold text-[10px] rounded-full uppercase tracking-wider">OUTPUT</span>
+                        <div class="space-y-3 text-xs text-slate-700 dark:text-slate-300">
+                            <div>
+                                <strong class="text-slate-900 dark:text-white flex items-center gap-1.5"><i class="fa-solid fa-star text-blue-600"></i> EMC-FinTrack Web Portal:</strong>
+                                <p class="text-slate-500 dark:text-slate-400 pl-5 mt-0.5">Digital receipt ledger, budget dashboard, role access, and audit capabilities.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-200 dark:border-slate-800">
+                    <div class="p-5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                        <h4 class="font-bold text-slate-900 dark:text-white text-sm">2. Theoretical Foundations</h4>
+                        <div class="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                            <p><strong>DeLone & McLean IS Success Model:</strong> Evaluates System Quality, Information Quality, and Service Quality to ensure user adoption and trust among student leaders and advisers.</p>
+                            <p><strong>Agency Theory & Accountability Framework:</strong> Addresses principal-agent relationships by eliminating information asymmetry between student body officers (agents) and students/advisers (principals).</p>
+                        </div>
+                    </div>
+
+                    <div class="p-5 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                        <h4 class="font-bold text-slate-900 dark:text-white text-sm">3. Scope & Delimitation</h4>
+                        <div class="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                            <p><strong>Scope:</strong> Covers student organization officers, general members, and advisers across EMCI departments. Focuses on digital uploads, ledger tracking, and balance computation.</p>
+                            <p><strong>Delimitation:</strong> Strictly delimited to financial tracking & auditing. Does not process live payment gateways (GCash, online banking) or institutional tuition funds.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- ANNOUNCEMENT MODAL -->
+<div id="announcement-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm hidden p-4">
+    <div class="bg-white dark:bg-slate-900 dark:border dark:border-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-900 dark:text-white">Post New Announcement</h3>
+            <button onclick="closeAnnouncementModal()" class="text-slate-400 hover:text-slate-700 dark:hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form onsubmit="submitAnnouncement(event)" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Target Department / Council / Audience</label>
+                <select id="ann-target" class="w-full px-3 py-2 rounded-lg border dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm bg-white dark:bg-slate-800 font-semibold text-emc-600">
+                    <option value="ALL">📢 All Departments & Councils (General)</option>
+                    <option value="BSIS">BSIS Department Only</option>
+                    <option value="BSCRIM">BSCRIM Department Only</option>
+                    <option value="BSBA">BSBA Department Only</option>
+                    <option value="BSED/BEED">BSED/BEED Department Only</option>
+                    <option value="STUDENT COUNCIL">STUDENT COUNCIL Only</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Announcement Title</label>
+                <input type="text" id="ann-title" required class="w-full px-3 py-2 rounded-lg border dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm" placeholder="e.g. Fund Collection Deadline">
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Message Content</label>
+                <textarea id="ann-body" required rows="3" class="w-full px-3 py-2 rounded-lg border dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm" placeholder="Write announcement details here..."></textarea>
+            </div>
+            <button type="submit" class="w-full py-2.5 bg-emc-600 hover:bg-emc-700 text-white font-bold text-xs rounded-lg shadow">Publish Announcement</button>
+        </form>
+    </div>
+</div>
+
+<!-- RECEIPT MODAL -->
+<div id="receipt-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-sm hidden p-4">
+    <div class="bg-white dark:bg-slate-900 dark:border dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in flex flex-col">
+        <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-receipt text-emc-400"></i>
+                <h3 class="font-bold text-sm sm:text-base" id="receipt-modal-title">Receipt Proof: TRX-101</h3>
+            </div>
+            <button onclick="closeReceiptModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-all">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+            <div class="bg-slate-50 dark:bg-slate-950/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-4 text-xs">
+                <div>
+                    <span class="text-slate-400 uppercase font-bold text-[10px] block">OR Number:</span>
+                    <span id="receipt-modal-or" class="font-bold text-slate-900 dark:text-white text-sm font-mono">OR-99421</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 uppercase font-bold text-[10px] block">Amount:</span>
+                    <span id="receipt-modal-amount" class="font-bold text-emc-600 dark:text-emc-400 text-sm">₱12,500.00</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 uppercase font-bold text-[10px] block">Particulars / Vendor:</span>
+                    <span id="receipt-modal-particulars" class="font-semibold text-slate-800 dark:text-slate-200">Jollibee Calapan</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 uppercase font-bold text-[10px] block">Date:</span>
+                    <span id="receipt-modal-date" class="font-medium text-slate-600 dark:text-slate-400 font-mono">2026-10-18</span>
+                </div>
+            </div>
+
+            <div id="receipt-content-container" class="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center text-center space-y-2">
+                <i class="fa-solid fa-file-invoice text-4xl text-slate-400"></i>
+                <p class="font-bold text-slate-800 dark:text-white text-xs">Official Receipt Scan Verified</p>
+                <p class="text-[10px] text-slate-400">EMC Digital Financial Archive • Tamper-proof Log</p>
+            </div>
+
+            <div class="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 p-3.5 rounded-xl text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <div class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-amber-600"></i> Verification Note:</div>
+                <p id="receipt-modal-note" class="text-slate-600 dark:text-slate-400 leading-relaxed">Food allowance approved by Faculty Adviser.</p>
+            </div>
+        </div>
+
+        <div class="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <button id="download-receipt-btn" onclick="downloadReceiptPictureWithDetails()" class="px-4 py-2.5 bg-emc-600 hover:bg-emc-700 text-white text-xs font-bold rounded-xl shadow transition-all flex items-center gap-2">
+                <i class="fa-solid fa-download"></i> <span>Download Receipt</span>
+            </button>
+            <button onclick="closeReceiptModal()" class="px-5 py-2.5 bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-bold rounded-xl shadow transition-all">Close Preview</button>
+        </div>
+    </div>
+</div>
+
+<!-- CUSTOM CONFIRM MODAL -->
+<div id="custom-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-sm hidden p-4">
+    <div class="bg-white dark:bg-slate-900 dark:border dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center animate-fade-in space-y-4">
+        <div id="custom-confirm-icon-wrapper" class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-950/50 text-rose-600 mb-1">
+            <i id="custom-confirm-icon" class="fa-solid fa-triangle-exclamation text-xl"></i>
+        </div>
+        <h3 id="custom-confirm-title" class="font-bold text-slate-900 dark:text-white text-lg">Confirmation</h3>
+        <p id="custom-confirm-text" class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed"></p>
+        <div class="flex gap-3 pt-2">
+            <button id="custom-confirm-cancel-btn" type="button" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all">Cancel</button>
+            <button id="custom-confirm-ok-btn" type="button" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- BOUNCING DOT LOADING OVERLAY -->
+<div id="bouncing-dot-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm hidden transition-all duration-200">
+    <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-2xl flex flex-col items-center space-y-3 max-w-xs w-full border border-slate-100 dark:border-slate-800 animate-fade-in">
+        <div class="flex space-x-2">
+            <div class="w-3 h-3 bg-emc-600 rounded-full animate-bounce-dot-1"></div>
+            <div class="w-3 h-3 bg-emc-600 rounded-full animate-bounce-dot-2"></div>
+            <div class="w-3 h-3 bg-emc-600 rounded-full animate-bounce-dot-3"></div>
+        </div>
+        <p id="bouncing-loading-text" class="text-xs font-semibold text-slate-600 dark:text-slate-400">Processing Request...</p>
+    </div>
+</div>
+
+<!-- JAVASCRIPT LOGIC -->
+<script>
+    const socket = io();
+
+    let currentUser = null;
+    let chartInstance = null;
+    let categoryChartInstance = null;
+    let deptCategoryChartInstances = {};
+    let isAnnouncementsExpanded = false;
+    let activeChatRecipient = null;
+    let allUsersList = [];
+    let activeChatsSet = new Set();
+    let isDarkMode = true; // Default dark mode is true
+    let currentReceiptData = null;
+
+    window.onload = function() {
+        loadSystemLogo();
+        renderAnnouncements();
+        applyMobileNavDisplay();
+        window.addEventListener('resize', applyMobileNavDisplay);
+
+        socket.on('refresh_data', () => {
+            renderDashboardBudgets();
+            renderLedgerAndAudit();
+            if (currentUser && (currentUser.role === 'adviser' || currentUser.role === 'admin' || currentUser.role === 'System Administrator')) {
+                loadPendingUsers();
+            }
+        });
+};
+
+        socket.on('receive_message', (data) => {
+        if (currentUser) {
+            const myEmail = (currentUser.email || currentUser.name).toLowerCase();
+            const recipient = (data.recipient || '').toLowerCase();
+            const sender = (data.sender || '').toLowerCase();
+            const activeTarget = (activeChatRecipient || '').toLowerCase();
+
+            if (recipient === myEmail || sender === myEmail) {
+                if (typeof unreadMessagesMap === 'undefined') {
+                    window.unreadMessagesMap = {};
+                }
+
+                // Kung para sa atin ang mensahe at hindi natin kasalukuyang binubuksan ang chat na ito
+                if (recipient === myEmail && sender !== activeTarget) {
+                    unreadMessagesMap[sender] = (unreadMessagesMap[sender] || 0) + 1;
+                }
+
+                if (sender === activeTarget || recipient === activeTarget || sender === myEmail) {
+                    loadPrivateMessages();
+                }
+                activeChatsSet.add(sender === myEmail ? recipient : sender);
+                renderRecentChatsList();
+            }
+        }
+    });
+
+    function applyMobileNavDisplay() {
+        const isMobile = window.innerWidth < 640;
+        const navButtons = document.querySelectorAll('nav button.tab-btn');
+        navButtons.forEach(btn => {
+            const spanEl = btn.querySelector('span');
+            if (spanEl) {
+                if (isMobile) {
+                    const isActive = btn.classList.contains('border-emc-600') || btn.classList.contains('text-emc-600');
+                    if (isActive || btn.dataset.expanded === 'true') {
+                        spanEl.classList.remove('hidden');
+                        spanEl.classList.add('inline', 'ml-1');
+                    } else {
+                        spanEl.classList.add('hidden');
+                        spanEl.classList.remove('inline', 'ml-1');
+                    }
+                } else {
+                    spanEl.classList.remove('hidden');
+                    spanEl.classList.add('inline', 'ml-1');
+                }
+            }
+        });
+    }
+
+    function togglePasswordVisibility(fieldId, iconId) {
+        const field = document.getElementById(fieldId);
+        const icon = document.getElementById(iconId);
+        if (field.type === 'password') {
+            field.type = 'text';
+            icon.className = 'fa-solid fa-eye-slash text-sm';
+        } else {
+            field.type = 'password';
+            icon.className = 'fa-solid fa-eye text-sm';
+        }
+    }
+
+    function showCustomConfirm(title, message, onConfirm, isDanger = true) {
+        const modal = document.getElementById('custom-confirm-modal');
+        const titleEl = document.getElementById('custom-confirm-title');
+        const textEl = document.getElementById('custom-confirm-text');
+        const okBtn = document.getElementById('custom-confirm-ok-btn');
+        const cancelBtn = document.getElementById('custom-confirm-cancel-btn');
+        const iconWrapper = document.getElementById('custom-confirm-icon-wrapper');
+        const iconEl = document.getElementById('custom-confirm-icon');
+
+        if (titleEl) titleEl.innerText = title;
+        if (textEl) textEl.innerText = message;
+
+        if (isDanger) {
+            okBtn.className = "flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-all";
+            iconWrapper.className = "inline-flex items-center justify-center w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-950/50 text-rose-600 mb-1";
+            iconEl.className = "fa-solid fa-triangle-exclamation text-xl";
+        } else {
+            okBtn.className = "flex-1 py-2.5 bg-emc-600 hover:bg-emc-700 text-white font-bold text-xs rounded-xl shadow-md transition-all";
+            iconWrapper.className = "inline-flex items-center justify-center w-12 h-12 rounded-full bg-emc-100 dark:bg-emc-950/50 text-emc-600 mb-1";
+            iconEl.className = "fa-solid fa-circle-check text-xl";
+        }
+
+        modal.classList.remove('hidden');
+
+        const newOkBtn = okBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+        newOkBtn.onclick = function() {
+            modal.classList.add('hidden');
+            if (typeof onConfirm === 'function') onConfirm();
+        };
+        newCancelBtn.onclick = function() { modal.classList.add('hidden'); };
+    }
+
+    function startBouncingLoading(message = "Processing Request...") {
+        const overlay = document.getElementById('bouncing-dot-overlay');
+        const textEl = document.getElementById('bouncing-loading-text');
+        if (textEl) textEl.innerText = message;
+        if (overlay) overlay.classList.remove('hidden');
+    }
+
+    function stopBouncingLoading() {
+        const overlay = document.getElementById('bouncing-dot-overlay');
+        if (overlay) overlay.classList.add('hidden');
+    }
+
+    function toggleDarkMode() {
+        isDarkMode = !isDarkMode;
+        const htmlEl = document.documentElement;
+        const icon = document.getElementById('dark-mode-icon');
+        const text = document.getElementById('dark-mode-text');
+
+        if (isDarkMode) {
+            htmlEl.classList.add('dark');
+            icon.className = "fa-solid fa-sun text-amber-400";
+            text.innerText = "Light Mode";
+        } else {
+            htmlEl.classList.remove('dark');
+            icon.className = "fa-solid fa-moon";
+            text.innerText = "Dark Mode";
+        }
+        renderDashboardBudgets();
+    }
+
+    function toggleAnnouncementsCollapse() {
+        isAnnouncementsExpanded = !isAnnouncementsExpanded;
+        const wrapper = document.getElementById('announcements-wrapper');
+        const icon = document.getElementById('ann-arrow-icon');
+        const text = document.getElementById('ann-toggle-text');
+
+        if (isAnnouncementsExpanded) {
+            wrapper.classList.remove('max-h-36');
+            wrapper.classList.add('max-h-[500px]');
+            icon.className = "fa-solid fa-chevron-up";
+            text.innerText = "Collapse";
+        } else {
+            wrapper.classList.remove('max-h-[500px]');
+            wrapper.classList.add('max-h-36');
+            icon.className = "fa-solid fa-chevron-down";
+            text.innerText = "Expand";
+        }
+    }
+
+    async function loadSystemLogo() {
+        try {
+            const res = await fetch('/api/logo');
+            const data = await res.json();
+            if (data.success && data.logo) {
+                const headerLogo = document.getElementById('header-logo-container');
+                const loginLogo = document.getElementById('login-logo-container');
+                const imgHtml = `<img src="${data.logo}" class="w-full h-full object-cover">`;
+                if (headerLogo) headerLogo.innerHTML = imgHtml;
+                if (loginLogo) loginLogo.innerHTML = imgHtml;
+            }
+        } catch (err) { console.error("Error loading logo:", err); }
+    }
+
+    async function handleLogoUpload(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const base64Img = event.target.result;
+                try {
+                    startBouncingLoading("Updating Logo...");
+                    const response = await fetch('/api/logo', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ logo: base64Img })
+                    });
+                    const data = await response.json();
+                    await new Promise(r => setTimeout(r, 800));
+                    stopBouncingLoading();
+                    if (data.success) {
+                        loadSystemLogo();
+                        showCustomConfirm("Success", "System logo successfully updated!", null, false);
+                    }
+                } catch (err) {
+                    stopBouncingLoading();
+                    showCustomConfirm("Error", "Server error.", null, true);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function switchAuthTab(tab) {
+        document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+        document.getElementById('form-signup').classList.toggle('hidden', tab !== 'signup');
+        document.getElementById('tab-login').className = tab === 'login' ? "flex-1 py-2 text-xs font-bold rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm transition-all" : "flex-1 py-2 text-xs font-bold rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-all";
+        document.getElementById('tab-signup').className = tab === 'signup' ? "flex-1 py-2 text-xs font-bold rounded-md bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm transition-all" : "flex-1 py-2 text-xs font-bold rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-all";
+        document.getElementById('login-error').classList.add('hidden');
+    }
+
+    async function handleSignup(e) {
+        e.preventDefault();
+        const name = document.getElementById('signup-name').value.trim();
+        const prog = document.getElementById('signup-program').value;
+        const roleType = document.getElementById('signup-role-type').value;
+        const email = document.getElementById('signup-email').value.trim().toLowerCase();
+        const pass = document.getElementById('signup-password').value;
+        const confirmPass = document.getElementById('signup-confirm-password').value;
+
+        if (pass !== confirmPass) {
+            showCustomConfirm("Mismatch", "Password and Confirm Password do not match.", null, true);
+            return;
+        }
+
+        startBouncingLoading("Submitting Registration...");
+        try {
+            const response = await fetch('/api/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password: pass, name, program: prog, role: roleType })
+            });
+            const data = await response.json();
+            await new Promise(r => setTimeout(r, 1000));
+            stopBouncingLoading();
+            if (!response.ok) {
+                showCustomConfirm("Failed", data.message || 'Error.', null, true);
+                return;
+            }
+            showCustomConfirm("Submitted", "Registration submitted for adviser approval. It will appear in real-time in the approval queue once verified.", () => {
+                document.getElementById('form-signup').reset();
+                switchAuthTab('login');
+            }, false);
+        } catch (err) {
+            stopBouncingLoading();
+            showCustomConfirm("Error", "Server connection error.", null, true);
+        }
+    }
+
+    async function handleLogin(event) {
+        event.preventDefault();
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
+        const errorEl = document.getElementById('login-error');
+
+        startBouncingLoading("Signing in...");
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await response.json();
+            await new Promise(r => setTimeout(r, 1000));
+            stopBouncingLoading();
+
+            if (!response.ok || !data.success) {
+                if (errorEl) {
+                    errorEl.textContent = data.message || 'Invalid credentials';
+                    errorEl.classList.remove('hidden');
+                }
+                return;
+            }
+            loginUser(data.user.email, data.user.name, data.user.role, data.user.title, data.user.program);
+        } catch (err) {
+            stopBouncingLoading();
+            showCustomConfirm("Error", "Server connection error.", null, true);
+        }
+    }
+
+    function loginUser(email, name, role, title, program) {
+        let userProgram = (role === 'admin' || role === 'System Administrator') ? 'ALL' : program;
+        
+        let userRole = role || 'student';
+        let userTitle = title;
+        if (!userTitle) {
+            if (userRole === 'admin' || userRole === 'System Administrator') userTitle = 'System Administrator';
+            else if (userRole === 'adviser') userTitle = 'Faculty Adviser';
+            else if (userRole === 'leader') userTitle = 'Student Leader';
+            else userTitle = 'Student Member';
+        }
+
+        currentUser = { email, name, role: userRole, title: userTitle, program: userProgram };
+        
+        document.getElementById('auth-modal').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        
+        document.getElementById('user-display-name').innerText = name;
+        document.getElementById('user-display-role').innerText = userTitle;
+        document.getElementById('user-dept-badge').innerText = userProgram === 'ALL' ? 'ALL DEPT' : userProgram;
+
+        const logoUploadWrapper = document.getElementById('admin-logo-upload-wrapper');
+        if (logoUploadWrapper) {
+            if (userRole === 'adviser' || userRole === 'admin' || userRole === 'System Administrator') logoUploadWrapper.classList.remove('hidden');
+            else logoUploadWrapper.classList.add('hidden');
+        }
+
+        const resetPanel = document.getElementById('admin-reset-funds-panel');
+        if (resetPanel) {
+            if (userRole === 'admin' || userRole === 'System Administrator') resetPanel.classList.remove('hidden');
+            else resetPanel.classList.add('hidden');
+        }
+
+        const isAuthorized = (userRole === 'adviser' || userRole === 'leader' || userRole === 'admin' || userRole === 'System Administrator');
+        document.querySelectorAll('.role-leader, .role-adviser').forEach(el => {
+            if (isAuthorized) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        });
+
+        const isAdvisorOrAdmin = (userRole === 'adviser' || userRole === 'admin' || userRole === 'System Administrator');
+        document.querySelectorAll('.advisor-admin-only').forEach(el => {
+            if (isAdvisorOrAdmin) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        });
+
+        if (userProgram && userProgram !== 'ALL' && document.getElementById('upload-program')) {
+            document.getElementById('upload-program').value = userProgram;
+            if (userRole !== 'admin' && userRole !== 'System Administrator') document.getElementById('upload-program').setAttribute('disabled', 'true');
+        }
+
+        renderDashboardBudgets();
+        renderLedgerAndAudit();
+        renderAnnouncements();
+        loadContacts();
+        loadSystemLogo();
+        if (isAdvisorOrAdmin) loadPendingUsers();
+    }
+
+    async function resetDepartmentFunds(program) {
+        showCustomConfirm("Reset Funds", `Reset fund balances for [${program}] to zero?`, async () => {
+            try {
+                startBouncingLoading("Resetting...");
+                const response = await fetch('/api/admin/reset-funds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ program })
+                });
+                const data = await response.json();
+                await new Promise(r => setTimeout(r, 800));
+                stopBouncingLoading();
+                if (data.success) {
+                    showCustomConfirm("Success", `Funds reset successfully!`, null, false);
+                    renderDashboardBudgets();
+                    renderLedgerAndAudit();
+                }
+            } catch (err) { stopBouncingLoading(); }
+        });
+    }
+
+    async function loadPendingUsers() {
+        try {
+            const response = await fetch('/api/users');
+            let users = await response.json();
+            const tableBody = document.getElementById('approval-table-body');
+            const pendingBadge = document.getElementById('student-pending-badge');
+            if (!tableBody) return;
+
+            if (Array.isArray(users)) {
+                users = [...users].reverse();
+            }
+
+            let html = '';
+            let pendingCount = 0;
+            users.forEach(user => {
+                if (user.role === 'student' || user.role === 'leader') {
+                    if (currentUser && currentUser.program && currentUser.program !== 'ALL' && currentUser.role !== 'admin' && currentUser.role !== 'System Administrator') {
+                        if (user.program !== currentUser.program) return;
+                    }
+                    if (user.status === 'Pending') pendingCount++;
+                    html += `
+                        <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td class="px-3 sm:px-4 py-2 font-medium text-slate-800 dark:text-slate-200">${user.name}</td>
+                            <td class="px-3 sm:px-4 py-2 text-slate-600 dark:text-slate-400">${user.email}</td>
+                            <td class="px-3 sm:px-4 py-2 text-slate-600 dark:text-slate-400">${user.program}</td>
+                            <td class="px-3 sm:px-4 py-2">
+                                <span class="px-2 py-0.5 text-[10px] uppercase font-bold rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">${user.role}</span>
+                            </td>
+                            <td class="px-3 sm:px-4 py-2">
+                                <span class="px-2 py-1 text-xs rounded font-semibold ${user.status === 'Approved' ? 'bg-emc-50 dark:bg-emc-950/50 text-emc-700 dark:text-emc-300' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300'}">${user.status}</span>
+                            </td>
+                            <td class="px-3 sm:px-4 py-2 flex items-center gap-2">
+                                ${user.status === 'Pending' ? `
+                                    <button onclick="updateUserStatus('${user.email}', 'Approved')" class="px-2 py-1 bg-emc-600 hover:bg-emc-700 text-white text-xs font-semibold rounded shadow-sm">Approve</button>
+                                    <button onclick="deleteUser('${user.email}')" class="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded shadow-sm">Delete</button>
+                                ` : `
+                                    <button onclick="deleteUser('${user.email}')" class="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded shadow-sm">Delete</button>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                }
+            });
+            tableBody.innerHTML = html || `<tr><td colspan="6" class="px-4 py-4 text-center text-slate-400 text-xs">No pending student or leader registrations.</td></tr>`;
+            if (pendingBadge) pendingBadge.innerText = `${pendingCount} Pending Users`;
+        } catch (err) { console.error("Error loading users:", err); }
+    }
+
+    async function updateUserStatus(email, status) {
+        try {
+            startBouncingLoading("Updating...");
+            await fetch('/api/users/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, status })
+            });
+            stopBouncingLoading();
+            loadPendingUsers();
+        } catch (err) { stopBouncingLoading(); }
+    }
+
+    async function deleteUser(email) {
+        showCustomConfirm("Delete User", "Delete this user?", async () => {
+            try {
+                startBouncingLoading("Deleting...");
+                await fetch('/api/users/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                stopBouncingLoading();
+                loadPendingUsers();
+            } catch (err) { stopBouncingLoading(); }
+        });
+    }
+
+    function handleLogout() {
+        showCustomConfirm("Sign Out", "Logout from your account?", () => {
+            currentUser = null;
+            document.getElementById('login-form')?.reset();
+            document.getElementById('form-signup')?.reset();
+            document.getElementById('main-app')?.classList.add('hidden');
+            document.getElementById('auth-modal')?.classList.remove('hidden');
+            loadSystemLogo();
+            switchAuthTab('login');
+        }, false);
+    }
+
+    function switchTabContent(tabId) {
+        ['dashboard', 'ledgers', 'upload', 'audit', 'messages', 'research'].forEach(t => {
+            const content = document.getElementById('content-' + t);
+            const nav = document.getElementById('nav-' + t);
+            if (content) {
+                content.classList.add('hidden');
+                content.classList.remove('animate-fade-in');
+            }
+            if (nav) {
+                nav.className = nav.className.replace('border-emc-600 text-emc-600', 'border-transparent text-slate-500 dark:text-slate-400');
+                nav.removeAttribute('data-expanded');
+            }
+        });
+
+        const targetContent = document.getElementById('content-' + tabId);
+        if (targetContent) {
+            targetContent.classList.remove('hidden');
+            void targetContent.offsetWidth;
+            targetContent.classList.add('animate-fade-in');
+        }
+
+        const activeNav = document.getElementById('nav-' + tabId);
+        if (activeNav) {
+            activeNav.className = activeNav.className.replace('border-transparent text-slate-500 dark:text-slate-400', 'border-emc-600 text-emc-600 dark:text-emc-400');
+            activeNav.setAttribute('data-expanded', 'true');
+        }
+
+        applyMobileNavDisplay();
+        if (tabId === 'messages') loadContacts();
+    }
+
+    function toggleTransactionType() {
+        const type = document.getElementById('upload-type').value;
+        const expenseGroup = document.getElementById('expense-fields-group');
+        const fileWrapper = document.getElementById('file-field-wrapper');
+        const labelPart = document.getElementById('label-particulars');
+        const partInput = document.getElementById('upload-particulars');
+        const orInput = document.getElementById('upload-or');
+        const fileInput = document.getElementById('expense-file');
+
+        if (type === 'FundAddition') {
+            expenseGroup.classList.add('hidden');
+            fileWrapper.classList.remove('hidden');
+            labelPart.innerText = "Source / Description of Fund Addition";
+            partInput.placeholder = "e.g. Alumni Donation / Ticket Selling Proceeds";
+            if (orInput) orInput.removeAttribute('required');
+            if (fileInput) fileInput.removeAttribute('required');
+        } else {
+            expenseGroup.classList.remove('hidden');
+            fileWrapper.classList.remove('hidden');
+            labelPart.innerText = "Particulars / Item Description";
+            partInput.placeholder = "e.g. Semestral Assembly Tarpaulin";
+            if (orInput) orInput.setAttribute('required', 'true');
+            if (fileInput) fileInput.setAttribute('required', 'true');
+        }
+    }
+
+    async function submitTransaction(e) {
+        e.preventDefault();
+        const trxType = document.getElementById('upload-type').value;
+        const formData = new FormData();
+        
+        formData.append('id', 'TRX-' + Date.now());
+        formData.append('date', new Date().toISOString().split('T')[0]);
+        
+        let progVal = document.getElementById('upload-program').value;
+        if (currentUser && currentUser.program && currentUser.program !== 'ALL') {
+            progVal = currentUser.program;
+        }
+        formData.append('prog', progVal);
+        formData.append('amount', parseFloat(document.getElementById('upload-amount').value).toFixed(2));
+        formData.append('part', document.getElementById('upload-particulars').value);
+        formData.append('status', 'Pending');
+
+        if (trxType === 'FundAddition') {
+            formData.append('cat', 'Fund Inflow');
+            formData.append('orNum', document.getElementById('upload-or').value || 'INFLOW');
+        } else {
+            formData.append('cat', document.getElementById('upload-category').value);
+            formData.append('orNum', document.getElementById('upload-or').value);
+        }
+
+        const fileInput = document.getElementById('expense-file');
+        if (fileInput && fileInput.files[0]) {
+            formData.append('receiptFile', fileInput.files[0]);
+        }
+
+        startBouncingLoading(trxType === 'FundAddition' ? "Processing Fund Addition..." : "Uploading & Encrypting Receipt...");
+
+        try {
+            const response = await fetch('/api/expenses', { method: 'POST', body: formData });
+            const data = await response.json();
+            await new Promise(r => setTimeout(r, 1200));
+            stopBouncingLoading();
+
+            if (!response.ok || !data.success) {
+                showCustomConfirm("Error", data.message || 'Failed.', null, true);
+                return;
+            }
+
+            e.target.reset();
+            toggleTransactionType();
+            if (currentUser && currentUser.program && currentUser.program !== 'ALL') {
+                document.getElementById('upload-program').value = currentUser.program;
+            }
+            renderLedgerAndAudit();
+            renderDashboardBudgets();
+            switchTabContent('ledgers');
+        } catch (err) {
+            stopBouncingLoading();
+            showCustomConfirm("Error", "Server connection error.", null, true);
+        }
+    }
+
+    async function updateAuditStatus(id, status) {
+        try {
+            startBouncingLoading(`Updating status to ${status}...`);
+            const response = await fetch('/api/expenses/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, status })
+            });
+            const data = await response.json();
+            await new Promise(r => setTimeout(r, 600));
+            stopBouncingLoading();
+
+            if (!response.ok || !data.success) {
+                showCustomConfirm("Error", data.message || 'Failed to update status.', null, true);
+                return;
+            }
+            renderLedgerAndAudit();
+            renderDashboardBudgets();
+        } catch (err) {
+            stopBouncingLoading();
+            showCustomConfirm("Error", "Server connection error.", null, true);
+        }
+    }
+
+    async function deleteExpense(id) {
+        showCustomConfirm("Delete Entry", "Are you sure you want to delete this transaction entry?", async () => {
+            try {
+                startBouncingLoading("Deleting entry...");
+                const response = await fetch('/api/expenses/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const data = await response.json();
+                await new Promise(r => setTimeout(r, 600));
+                stopBouncingLoading();
+
+                if (!response.ok || !data.success) {
+                    showCustomConfirm("Error", data.message || 'Failed to delete entry.', null, true);
+                    return;
+                }
+                renderLedgerAndAudit();
+                renderDashboardBudgets();
+            } catch (err) {
+                stopBouncingLoading();
+                showCustomConfirm("Error", "Server connection error.", null, true);
+            }
+        });
+    }
+
+    async function renderDashboardBudgets() {
+        const container = document.getElementById('budget-cards-container');
+        const indexContainer = document.getElementById('transparency-index-container');
+        const recentHistoryContainer = document.getElementById('dashboard-recent-history-container');
+        if (!container) return;
+
+        try {
+            const res = await fetch('/api/expenses');
+            const expenses = await res.json();
+
+            let baseBudgets = {
+                'BSIS': { name: 'BSIS InfoSys Society', initial: 0 },
+                'BSCRIM': { name: 'BSCRIM Criminology', initial: 0 },
+                'BSBA': { name: 'BSBA Business Executives', initial: 0 },
+                'BSED/BEED': { name: 'BSED/BEED Educators Guild', initial: 0 },
+                'STUDENT COUNCIL': { name: 'Student Council Executive', initial: 0 }
+            };
+
+            let deptData = {
+                'BSIS': { added: 0, spent: 0, lastDate: 'N/A', totalItems: 0, verifiedItems: 0, categories: {} },
+                'BSCRIM': { added: 0, spent: 0, lastDate: 'N/A', totalItems: 0, verifiedItems: 0, categories: {} },
+                'BSBA': { added: 0, spent: 0, lastDate: 'N/A', totalItems: 0, verifiedItems: 0, categories: {} },
+                'BSED/BEED': { added: 0, spent: 0, lastDate: 'N/A', totalItems: 0, verifiedItems: 0, categories: {} },
+                'STUDENT COUNCIL': { added: 0, spent: 0, lastDate: 'N/A', totalItems: 0, verifiedItems: 0, categories: {} }
+            };
+
+            let allCategoriesSummary = {};
+            let recentHistoryHtml = '';
+            let rawExpenses = Array.isArray(expenses) ? [...expenses] : [];
+
+            // FILTER RECENT HISTORY ACCORDING TO USER ROLE/PROGRAM TO PREVENT SEEING OTHER DEPARTMENTS
+            let dashboardExpenses = rawExpenses;
+            if (currentUser && currentUser.program && currentUser.program !== 'ALL' && currentUser.role !== 'admin' && currentUser.role !== 'System Administrator') {
+                let uProg = currentUser.program;
+                if (uProg === 'BSED') uProg = 'BSED/BEED';
+                dashboardExpenses = dashboardExpenses.filter(item => {
+                    let itemProg = item.prog || item.program || 'BSIS';
+                    if (itemProg === 'BSED') itemProg = 'BSED/BEED';
+                    return itemProg === uProg;
+                });
+            }
+
+            let sortedDashboardExpenses = dashboardExpenses.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+            let sortedRawExpenses = rawExpenses.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+            sortedRawExpenses.forEach(item => {
+                let prog = item.prog || item.program || 'BSIS';
+                if (prog === 'BSED') prog = 'BSED/BEED';
+                if (!deptData[prog]) prog = 'BSIS';
+
+                const amt = Number(item.amount) || 0;
+                const isVerified = (item.status === 'Verified');
+                const isAddition = (item.cat === 'Fund Inflow' || item.category === 'Fund Inflow');
+
+                if (isAddition) {
+                    if (isVerified || currentUser?.role === 'admin' || currentUser?.role === 'System Administrator' || currentUser?.role === 'adviser') {
+                        deptData[prog].added += amt;
+                    }
+                } else {
+                    deptData[prog].totalItems++;
+                    if (isVerified) {
+                        deptData[prog].verifiedItems++;
+                        deptData[prog].spent += amt;
+                        deptData[prog].lastDate = item.date ? item.date.split('T')[0] : 'N/A';
+
+                        const cat = item.cat || item.category || 'Uncategorized';
+                        deptData[prog].categories[cat] = (deptData[prog].categories[cat] || 0) + amt;
+                        allCategoriesSummary[cat] = (allCategoriesSummary[cat] || 0) + amt;
+                    }
+                }
+            });
+
+            sortedDashboardExpenses.slice(0, 6).forEach(item => {
+                const isAdd = (item.cat === 'Fund Inflow' || item.category === 'Fund Inflow');
+                const badgeColor = item.status === 'Verified' ? 'bg-emc-50 text-emc-700 dark:bg-emc-950/50 dark:text-emc-300' : (item.status === 'Disapproved' ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300');
+                recentHistoryHtml += `
+                    <div class="flex items-center justify-between p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-xs">
+                        <div>
+                            <span class="font-bold text-slate-800 dark:text-white">${item.prog || item.program}</span> • <span class="text-slate-500">${item.part || item.particulars}</span>
+                            <div class="text-[10px] text-slate-400 mt-0.5">${item.date ? item.date.split('T')[0] : ''} • Ref: ${item.orNum || item.or_number || 'N/A'}</div>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-mono font-bold ${isAdd ? 'text-emc-600' : 'text-slate-900 dark:text-white'}">${isAdd ? '+' : '-'}₱${Number(item.amount).toLocaleString()}</span>
+                            <span class="block px-2 py-0.5 text-[9px] font-bold rounded mt-1 uppercase tracking-wider ${badgeColor}">${item.status || 'Pending'}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            if (recentHistoryContainer) recentHistoryContainer.innerHTML = recentHistoryHtml || `<p class="text-xs text-slate-400 text-center py-3">No recorded expenses for your scope.</p>`;
+
+            let budgetsArray = Object.keys(baseBudgets).map(key => {
+                let totalFund = baseBudgets[key].initial + deptData[key].added;
+                let spent = deptData[key].spent;
+                let remaining = totalFund - spent;
+                return { prog: key, name: baseBudgets[key].name, totalFund, spent, remaining };
+            });
+
+            let cardsHtml = '';
+            budgetsArray.forEach(b => {
+                let showCard = true;
+                if (currentUser && currentUser.program && currentUser.program !== 'ALL' && currentUser.role !== 'admin' && currentUser.role !== 'System Administrator') {
+                    let uProg = currentUser.program;
+                    if (uProg === 'BSED') uProg = 'BSED/BEED';
+                    if (b.prog !== uProg && b.prog !== 'STUDENT COUNCIL') showCard = false;
+                }
+                if (!showCard) return;
+
+                let pct = b.totalFund > 0 ? Math.min(Math.round((b.spent / b.totalFund) * 100), 100) : 0;
+                
+                cardsHtml += `
+                    <div class="bg-white dark:bg-slate-900 dark:border-slate-800 p-3.5 sm:p-4 rounded-xl shadow-sm border border-slate-200 card-hover-anim">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="text-[9px] font-bold uppercase tracking-wider text-emc-600 dark:text-emc-400 bg-emc-50 dark:bg-emc-950/50 px-2 py-0.5 rounded">${b.prog}</span>
+                                <h4 class="font-bold text-slate-800 dark:text-white text-xs sm:text-sm mt-1">${b.name}</h4>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[9px] text-slate-400 block uppercase tracking-wider">Remaining Balance</span>
+                                <span class="font-mono font-extrabold text-lg sm:text-xl text-emc-600 dark:text-emc-400">₱${b.remaining.toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs bg-slate-50 dark:bg-slate-950/50 p-2 rounded-lg mb-2 border border-slate-100 dark:border-slate-800">
+                            <div><span class="text-slate-400 text-[9px] uppercase block">Total Allocated</span> <strong class="text-slate-700 dark:text-slate-300 font-mono text-xs">₱${b.totalFund.toLocaleString()}</strong></div>
+                            <div><span class="text-slate-400 text-[9px] uppercase block">Total Disbursed</span> <strong class="text-slate-700 dark:text-slate-300 font-mono text-xs">₱${b.spent.toLocaleString()}</strong></div>
+                        </div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-emc-600 h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                        </div>
+                        <div class="flex justify-between items-center mt-1 text-[10px] text-slate-400 font-medium">
+                            <span>Utilization Rate: ${pct}%</span>
+                            <span>Last TRX: ${deptData[b.prog].lastDate}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = cardsHtml;
+
+            let isAdminOrAdviser = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'System Administrator' || currentUser.role === 'adviser'));
+            let indexHtml = '';
+            budgetsArray.forEach(b => {
+                let totalTrx = deptData[b.prog].totalItems;
+                let verifiedTrx = deptData.prog ? deptData[b.prog].verifiedItems : 0;
+                let indexPct = totalTrx > 0 ? Math.round((verifiedTrx / totalTrx) * 100) : 100;
+                indexHtml += `
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            <span>${b.prog} Transparency Score</span>
+                            <span class="font-mono">${indexPct}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-emc-600 h-full rounded-full" style="width: ${indexPct}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            if (indexContainer) indexContainer.innerHTML = indexHtml;
+
+            updateChartRealtime(budgetsArray, isAdminOrAdviser);
+            renderDepartmentCardsAndGraphs(rawExpenses);
+            renderOverallCategoryDoughnut(allCategoriesSummary);
+
+        } catch (err) { console.error("Error loading dashboard budgets:", err); }
+    }
+
+    async function renderDepartmentCardsAndGraphs(expenses) {
+        const container = document.getElementById('department-graphs-container');
+        if (!container) return;
+
+        const userRole = currentUser ? currentUser.role : '';
+        const userProg = currentUser ? (currentUser.program || '').toUpperCase().trim() : '';
+        
+        const isSysAdmin = (userRole === 'admin' || userRole === 'System Administrator' || userProg === 'ALL');
+        const isAdviser = (userRole === 'adviser');
+        const isStudentCouncil = (userProg === 'STUDENT COUNCIL' || userRole === 'leader');
+
+        let allowedDepts = [];
+
+        if (isSysAdmin) {
+            allowedDepts = ['BSIS', 'BSCRIM', 'BSBA', 'BSED/BEED', 'STUDENT COUNCIL'];
+        } else if (isAdviser) {
+            let normProg = userProg.includes('BSED') ? 'BSED/BEED' : userProg;
+            allowedDepts = [normProg, 'STUDENT COUNCIL'];
+        } else if (isStudentCouncil) {
+            allowedDepts = ['STUDENT COUNCIL'];
+        } else {
+            let normProg = userProg.includes('BSED') ? 'BSED/BEED' : userProg;
+            allowedDepts = [normProg, 'STUDENT COUNCIL'];
+        }
+
+        allowedDepts = [...new Set(allowedDepts.filter(Boolean))];
+
+        const palette = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+        let htmlContent = '';
+
+        allowedDepts.forEach(deptKey => {
+            const deptExpenses = Array.isArray(expenses) ? expenses.filter(item => {
+                let itemProg = (item.prog || item.program || '').toUpperCase().trim();
+                if (itemProg.includes('BSED')) itemProg = 'BSED/BEED';
+                return itemProg === deptKey;
+            }) : [];
+
+            let deptTotals = {};
+            let totalSpent = 0;
+
+            deptExpenses.forEach(item => {
+                if (isSysAdmin || isAdviser || isStudentCouncil || item.status === 'Verified') {
+                    const cat = item.cat || item.category || 'Uncategorized';
+                    const amt = Number(item.amount) || 0;
+                    deptTotals[cat] = (deptTotals[cat] || 0) + amt;
+                    totalSpent += amt;
+                }
+            });
+
+            const categories = Object.keys(deptTotals);
+
+            htmlContent += `
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm mb-5">
+                    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                            <h3 class="font-bold text-slate-800 dark:text-white text-sm uppercase tracking-wider">${deptKey}</h3>
+                        </div>
+                        <span class="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs rounded-xl">
+                            Total: ₱${totalSpent.toLocaleString()}
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                        <div class="w-full max-w-[170px] mx-auto py-2">
+                            <canvas id="chart-${deptKey.replace(/[^a-zA-Z0-9]/g, '')}"></canvas>
+                        </div>
+
+                        <div class="space-y-2">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Category Breakdown</p>
+                            ${categories.length > 0 ? categories.map((cat, idx) => {
+                                const amt = deptTotals[cat];
+                                const pct = totalSpent > 0 ? Math.round((amt / totalSpent) * 100) : 0;
+                                return `
+                                    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-950/50 px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${palette[idx % palette.length]}"></span>
+                                            <span class="text-slate-700 dark:text-slate-300 font-medium text-xs">${cat}</span>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="font-mono font-bold text-slate-900 dark:text-white text-xs">₱${amt.toLocaleString()}</span>
+                                            <span class="text-[10px] text-slate-400 ml-1">(${pct}%)</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('') : '<p class="text-xs text-slate-400 text-center py-3 bg-slate-50 dark:bg-slate-950/30 rounded-xl">No recorded expenses.</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = htmlContent;
+
+        allowedDepts.forEach(deptKey => {
+            const canvasId = `chart-${deptKey.replace(/[^a-zA-Z0-9]/g, '')}`;
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+
+            const deptExpenses = Array.isArray(expenses) ? expenses.filter(item => {
+                let itemProg = (item.prog || item.program || '').toUpperCase().trim();
+                if (itemProg.includes('BSED')) itemProg = 'BSED/BEED';
+                return itemProg === deptKey;
+            }) : [];
+
+            let deptTotals = {};
+            let totalSpent = 0;
+            deptExpenses.forEach(item => {
+                if (isSysAdmin || isAdviser || isStudentCouncil || item.status === 'Verified') {
+                    const cat = item.cat || item.category || 'Uncategorized';
+                    const amt = Number(item.amount) || 0;
+                    deptTotals[cat] = (deptTotals[cat] || 0) + amt;
+                    totalSpent += amt;
+                }
+            });
+
+            const categories = Object.keys(deptTotals);
+            const amounts = Object.values(deptTotals);
+
+            if (window[`chart_inst_${canvasId}`]) {
+                window[`chart_inst_${canvasId}`].destroy();
+            }
+
+            const ctx = canvas.getContext('2d');
+            window[`chart_inst_${canvasId}`] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categories.length > 0 ? categories : ['No Data'],
+                    datasets: [{
+                        data: amounts.length > 0 ? amounts : [1],
+                        backgroundColor: categories.length > 0 ? palette.slice(0, categories.length) : ['#334155'],
+                        borderWidth: 2,
+                        borderColor: '#0f172a'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    cutout: '70%'
+                }
+            });
+        });
+    }
+
+    function updateChartRealtime(budgetsData, isAdmin) {
+        const canvas = document.getElementById('budgetChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        let labels = budgetsData.map(b => b.prog);
+        let allocatedFunds = budgetsData.map(b => b.totalFund);
+        let disbursedExpenses = budgetsData.map(b => b.spent);
+
+        if (!isAdmin && currentUser && currentUser.program) {
+            let uProg = currentUser.program;
+            if (uProg === 'BSED') uProg = 'BSED/BEED';
+            const filteredBudgets = budgetsData.filter(b => b.prog === uProg || b.prog === 'STUDENT COUNCIL');
+            if (filteredBudgets.length > 0) {
+                labels = filteredBudgets.map(b => b.prog);
+                allocatedFunds = filteredBudgets.map(b => b.totalFund);
+                disbursedExpenses = filteredBudgets.map(b => b.spent);
+                document.getElementById('chart-title').innerText = `${uProg} & Student Council Budget Utilization`;
+            }
+        } else {
+            document.getElementById('chart-title').innerText = `Departmental & Council Budget Utilization (Real-Time)`;
+        }
+
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Total Allocated Funds', data: allocatedFunds, backgroundColor: '#475569' },
+                    { label: 'Disbursed Expenses', data: disbursedExpenses, backgroundColor: '#16a34a' }
+                ]
+            },
+            options: { 
+                responsive: true,
+                animation: { duration: 800, easing: 'easeOutQuart' },
+                plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1' } } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+
+    function renderOverallCategoryDoughnut(categorySummary) {
+        const canvas = document.getElementById('categoryDoughnutChart');
+        const legendContainer = document.getElementById('category-legend-container');
+        const countBadge = document.getElementById('category-count-badge');
+        const highestText = document.getElementById('category-highest-text');
+        if (!canvas) return;
+
+        const categories = Object.keys(categorySummary);
+        const amounts = Object.values(categorySummary);
+        const totalSum = amounts.reduce((a, b) => a + b, 0);
+
+        if (countBadge) countBadge.innerText = `${categories.length} Categories`;
+
+        let highestCat = 'None';
+        let highestAmt = 0;
+        categories.forEach(c => {
+            if (categorySummary[c] > highestAmt) {
+                highestAmt = categorySummary[c];
+                highestCat = c;
+            }
+        });
+        if (highestText) highestText.innerText = `Highest Expense: ${highestCat} (₱${highestAmt.toLocaleString()})`;
+
+        if (categoryChartInstance) categoryChartInstance.destroy();
+
+        const palette = ['#16a34a', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+        const ctx = canvas.getContext('2d');
+
+        categoryChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: categories.length > 0 ? categories : ['No Data'],
+                datasets: [{
+                    data: amounts.length > 0 ? amounts : [1],
+                    backgroundColor: categories.length > 0 ? palette.slice(0, categories.length) : ['#334155'],
+                    borderWidth: 2,
+                    borderColor: '#0f172a'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                cutout: '70%'
+            }
+        });
+
+        if (legendContainer) {
+            let legendHtml = '';
+            if (categories.length === 0) {
+                legendContainer.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No categories recorded.</p>`;
+            } else {
+                categories.forEach((cat, idx) => {
+                    const amt = categorySummary[cat];
+                    const pct = totalSum > 0 ? Math.round((amt / totalSum) * 100) : 0;
+                    legendHtml += `
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${palette[idx % palette.length]}"></span>
+                                <span class="text-slate-700 dark:text-slate-300 font-medium">${cat}</span>
+                            </div>
+                            <span class="font-mono font-bold text-slate-900 dark:text-white">₱${amt.toLocaleString()} (${pct}%)</span>
+                        </div>
+                    `;
+                });
+                legendContainer.innerHTML = legendHtml;
+            }
+        }
+    }
+
+    async function renderLedgerAndAudit() {
+        try {
+            const res = await fetch('/api/expenses');
+            const expenses = await res.json();
+            
+            const ledgerTbody = document.getElementById('ledger-table-body');
+            const actionHeader = document.getElementById('ledger-action-header');
+            const footerCount = document.getElementById('ledger-count-footer');
+            
+            let displayExpenses = expenses;
+            if (currentUser) {
+                if (currentUser.program && currentUser.program !== 'ALL' && currentUser.role !== 'admin' && currentUser.role !== 'System Administrator') {
+                    let uProg = currentUser.program;
+                    if (uProg === 'BSED') uProg = 'BSED/BEED';
+                    
+                    displayExpenses = displayExpenses.filter(item => {
+                        let itemProg = item.prog || item.program || 'BSIS';
+                        if (itemProg === 'BSED') itemProg = 'BSED/BEED';
+                        return itemProg === uProg;
+                    });
+                }
+                
+                if (currentUser.role === 'student') {
+                    displayExpenses = displayExpenses.filter(item => item.status === 'Verified');
+                }
+            }
+
+            const filterOrg = document.getElementById('filter-org')?.value || 'ALL';
+            const filterCat = document.getElementById('filter-category')?.value || 'ALL';
+            const filterSearch = document.getElementById('filter-search')?.value.trim().toLowerCase() || '';
+
+            if (filterOrg !== 'ALL') {
+                displayExpenses = displayExpenses.filter(item => {
+                    let itemProg = item.prog || item.program || 'BSIS';
+                    if (itemProg === 'BSED') itemProg = 'BSED/BEED';
+                    return itemProg === filterOrg;
+                });
+            }
+            if (filterCat !== 'ALL') displayExpenses = displayExpenses.filter(item => (item.cat || item.category) === filterCat);
+            if (filterSearch) {
+                displayExpenses = displayExpenses.filter(item => {
+                    const part = (item.part || item.particulars || '').toLowerCase();
+                    const or = (item.orNum || item.or_number || '').toLowerCase();
+                    const id = (item.id || '').toLowerCase();
+                    return part.includes(filterSearch) || or.includes(filterSearch) || id.includes(filterSearch);
+                });
+            }
+
+            if (footerCount) footerCount.innerText = `Displaying ${displayExpenses.length} transaction entries`;
+
+            const canDeleteLedger = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'System Administrator' || currentUser.role === 'adviser' || currentUser.role === 'leader'));
+            if (actionHeader) {
+                if (canDeleteLedger) actionHeader.classList.remove('hidden');
+                else actionHeader.classList.add('hidden');
+            }
+
+            if (ledgerTbody && Array.isArray(displayExpenses)) {
+                ledgerTbody.innerHTML = displayExpenses.map(item => {
+                    const isAddition = (item.cat === 'Fund Inflow' || item.category === 'Fund Inflow');
+                    const amountClass = isAddition ? 'text-emc-600 dark:text-emc-400 font-bold' : 'text-slate-900 dark:text-white font-bold';
+                    const amountPrefix = isAddition ? '+' : '-';
+                    
+                    let showDeleteBtn = false;
+                    if (currentUser) {
+                        if (currentUser.role === 'admin' || currentUser.role === 'System Administrator' || currentUser.role === 'adviser') showDeleteBtn = true;
+                        else if (currentUser.role === 'leader' && item.status === 'Pending') showDeleteBtn = true;
+                    }
+                    
+                    const rawDate = item.date ? item.date.split('T')[0] : '';
+                    let itemProg = item.prog || item.program || 'BSIS';
+                    if (itemProg === 'BSED') itemProg = 'BSED/BEED';
+                    const itemId = item.id || ('TRX-' + Math.random().toString(36).substring(2, 9));
+
+                    return `
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                            <td class="p-3 sm:p-4">
+                                <span class="font-mono text-xs text-slate-500 dark:text-slate-400">${itemId}</span>
+                                <div class="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">${rawDate}</div>
+                            </td>
+                            <td class="p-3 sm:p-4 font-semibold text-slate-800 dark:text-slate-200">${itemProg}</td>
+                            <td class="p-3 sm:p-4 text-slate-800 dark:text-slate-200">${item.part || item.particulars}</td>
+                            <td class="p-3 sm:p-4">
+                                <span class="px-2 py-1 text-xs rounded font-medium ${isAddition ? 'bg-emc-50 dark:bg-emc-950/50 text-emc-700 dark:text-emc-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}">
+                                    ${item.cat || item.category}
+                                </span>
+                            </td>
+                            <td class="p-3 sm:p-4 ${amountClass}">${amountPrefix}₱${Number(item.amount).toLocaleString()}</td>
+                            <td class="p-3 sm:p-4">
+                                ${isAddition && !item.receipt ? '<span class="text-xs text-slate-400">N/A (Fund Inflow)</span>' : `
+                                    <button onclick="viewReceipt('${itemId}', '${item.orNum || item.or_number}', '${item.part || item.particulars}', '${item.amount}', '${item.date || ''}', '${item.receipt}')" class="px-3 py-1.5 bg-emc-50 dark:bg-emc-950/60 hover:bg-emc-100 text-emc-700 dark:text-emc-300 border border-emc-200 dark:border-emc-900 rounded-lg font-semibold text-xs transition-all flex items-center gap-1.5 shadow-sm">
+                                        <i class="fa-solid fa-eye text-emc-600"></i> <span>View Receipt</span>
+                                    </button>
+                                `}
+                            </td>
+                            <td class="p-3 sm:p-4">
+                                <span class="px-2 py-1 text-xs font-bold rounded ${item.status === 'Verified' ? 'bg-emc-50 dark:bg-emc-950/50 text-emc-700 dark:text-emc-300' : (item.status === 'Disapproved' ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300')}">${item.status || 'Pending'}</span>
+                                ${item.approved_at ? `<br><span class="text-[10px] text-slate-400">Approved: ${new Date(item.approved_at).toLocaleString()}</span>` : ''}
+                            </td>
+                            <td class="p-3 sm:p-4 ${canDeleteLedger ? '' : 'hidden'}">
+                                ${showDeleteBtn ? `<button onclick="deleteExpense('${itemId}')" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded shadow-sm" title="Delete entry"><i class="fa-solid fa-trash"></i></button>` : '<span class="text-[10px] text-slate-400">Locked</span>'}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            const auditList = document.getElementById('audit-list');
+            let pendingExpenses = Array.isArray(expenses) ? expenses.filter(item => item.status === 'Pending') : [];
+            if (currentUser && currentUser.program && currentUser.program !== 'ALL' && currentUser.role !== 'admin' && currentUser.role !== 'System Administrator') {
+                let uProg = currentUser.program;
+                if (uProg === 'BSED') uProg = 'BSED/BEED';
+                pendingExpenses = pendingExpenses.filter(item => {
+                    let itemProg = item.prog || item.program || 'BSIS';
+                    if (itemProg === 'BSED') itemProg = 'BSED/BEED';
+                    return itemProg === uProg || itemProg === 'STUDENT COUNCIL';
+                });
+            }
+
+            pendingExpenses.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+            const expenseBadge = document.getElementById('pending-count-badge');
+            if (expenseBadge) expenseBadge.innerText = `${pendingExpenses.length} Pending Submissions`;
+
+            const isAdvisorOrAdmin = (currentUser && (currentUser.role === 'adviser' || currentUser.role === 'admin' || currentUser.role === 'System Administrator'));
+            if (auditList) {
+                if (pendingExpenses.length === 0) {
+                    auditList.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">No pending submissions to review for your department/council.</p>`;
+                } else {
+                    auditList.innerHTML = pendingExpenses.map((item, idx) => {
+                        const isAdd = (item.cat === 'Fund Inflow' || item.category === 'Fund Inflow');
+                        const typeLabel = isAdd ? '<span class="text-emc-600 dark:text-emc-400 font-bold">[Fund Addition]</span>' : '<span class="text-amber-600 dark:text-amber-400 font-bold">[Expense]</span>';
+                        let itemProg = item.prog || item.program || 'BSIS';
+                        if (itemProg === 'BSED') itemProg = 'BSED/BEED';
+                        const itemId = item.id || ('EXP-' + (Date.now() + idx));
+                        
+                        let viewReceiptBtn = (!isAdd && item.receipt) ? `
+                            <button onclick="viewReceipt('${itemId}', '${item.orNum || item.or_number}', '${item.part || item.particulars}', '${item.amount}', '${item.date || ''}', '${item.receipt}')" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-md font-semibold text-xs flex items-center gap-1.5 shadow-sm">
+                                <i class="fa-solid fa-eye text-emc-600"></i> View Receipt
+                            </button>
+                        ` : '';
+
+                        let actionButtonsHtml = isAdvisorOrAdmin ? `
+                            <div class="flex flex-wrap items-center gap-2">
+                                ${viewReceiptBtn}
+                                <button onclick="updateAuditStatus('${itemId}', 'Verified')" class="px-3 py-1.5 bg-emc-600 hover:bg-emc-700 text-white text-xs font-semibold rounded-md shadow">Approve & Publish</button>
+                                <button onclick="updateAuditStatus('${itemId}', 'Disapproved')" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-md shadow">Disapprove</button>
+                            </div>
+                        ` : `
+                            <div class="flex items-center gap-2">
+                                ${viewReceiptBtn}
+                                <span class="px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900 text-xs font-bold rounded-md shadow-sm">
+                                    <i class="fa-solid fa-clock"></i> Pending Adviser Approval
+                                </span>
+                            </div>
+                        `;
+
+                        return `
+                            <div class="p-4 rounded-lg border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 dark:bg-slate-950/50">
+                                <div>
+                                    <span class="text-xs font-mono text-slate-400">${itemId} • ${itemProg}</span>
+                                    <h4 class="font-bold text-slate-800 dark:text-white text-base mt-0.5">${typeLabel} ${item.part || item.particulars || 'Untitled'}</h4>
+                                    <p class="text-xs text-slate-600 dark:text-slate-300">Amount: <strong class="text-slate-900 dark:text-white">₱${Number(item.amount || 0).toLocaleString()}</strong> • Ref/OR: ${item.orNum || item.or_number || 'N/A'}</p>
+                                </div>
+                                ${actionButtonsHtml}
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+        } catch (err) { console.error("Error loading ledger:", err); }
+    }
+
+   async function exportLedgerZIP() {
+    startBouncingLoading("Exporting All Receipt (ZIP)");
+    try {
+        const res = await fetch('/api/expenses');
+        const expenses = await res.json();
+
+        let displayExpenses = expenses;
+        if (currentUser && currentUser.program && currentUser.program !== 'ALL' && currentUser.role !== 'admin' && currentUser.role !== 'System Administrator') {
+            let uProg = currentUser.program;
+            if (uProg === 'BSED') uProg = 'BSED/BEED';
+            displayExpenses = displayExpenses.filter(item => {
+                let itemProg = item.prog || item.program || 'BSIS';
+                if (itemProg === 'BSED') itemProg = 'BSED/BEED';
+                return itemProg === uProg;
+            });
+        }
+
+        const zip = new JSZip();
+        const imgFolder = zip.folder("Ledger_Receipt_Pictures");
+
+        const generateReceiptCanvas = (item) => {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 600;
+                canvas.height = 750;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#0f172a";
+                ctx.fillRect(0, 0, canvas.width, 90);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 20px Inter, sans-serif";
+                ctx.fillText("EASTERN MINDORO COLLEGE, INC.", 30, 40);
+                ctx.fillStyle = "#16a34a";
+                ctx.font = "bold 13px Inter, sans-serif";
+                ctx.fillText("EMC-FINTRACK LEDGER RECEIPT PROOF", 30, 65);
+
+                ctx.fillStyle = "#f8fafc";
+                ctx.strokeStyle = "#cbd5e1";
+                ctx.lineWidth = 1;
+                ctx.fillRect(30, 110, 540, 160);
+                ctx.strokeRect(30, 110, 540, 160);
+
+                ctx.fillStyle = "#64748b";
+                ctx.font = "bold 11px Inter, sans-serif";
+                ctx.fillText("OR NUMBER / ID:", 50, 140);
+                ctx.fillText("AMOUNT:", 320, 140);
+
+                ctx.fillStyle = "#0f172a";
+                ctx.font = "bold 16px Inter, sans-serif";
+                ctx.fillText(item.orNum || item.or_number || item.id, 50, 165);
+
+                ctx.fillStyle = "#16a34a";
+                ctx.font = "bold 18px Inter, sans-serif";
+                ctx.fillText("₱" + Number(item.amount || 0).toLocaleString(), 320, 165);
+
+                ctx.fillStyle = "#64748b";
+                ctx.font = "bold 11px Inter, sans-serif";
+                ctx.fillText("PARTICULARS / VENDOR:", 50, 205);
+                ctx.fillText("TRANSACTION DATE:", 320, 205);
+
+                ctx.fillStyle = "#1e293b";
+                ctx.font = "14px Inter, sans-serif";
+                ctx.fillText(item.part || item.particulars || 'N/A', 50, 228);
+                ctx.fillText(item.date ? item.date.split('T')[0] : 'N/A', 320, 228);
+
+                const imageUrl = (item.receipt && item.receipt !== 'null' && item.receipt !== 'undefined') ? `/uploads/${item.receipt}` : null;
+
+                if (imageUrl) {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.onload = function() {
+                        ctx.fillStyle = "#f1f5f9";
+                        ctx.fillRect(30, 290, 540, 380);
+                        
+                        let hRatio = 540 / img.width;
+                        let vRatio = 380 / img.height;
+                        let ratio = Math.min(hRatio, vRatio);
+                        let centerShiftX = (540 - img.width * ratio) / 2;
+                        let centerShiftY = (380 - img.height * ratio) / 2;
+                        
+                        ctx.drawImage(img, 0, 0, img.width, img.height, 30 + centerShiftX, 290 + centerShiftY, img.width * ratio, img.height * ratio);
+                        resolve(canvas.toDataURL('image/jpeg', 0.90));
+                    };
+                    img.onerror = function() {
+                        drawDefaultPlaceholder(ctx);
+                        resolve(canvas.toDataURL('image/jpeg', 0.90));
+                    };
+                    img.src = imageUrl;
+                } else {
+                    drawDefaultPlaceholder(ctx);
+                    resolve(canvas.toDataURL('image/jpeg', 0.90));
+                }
+            });
+        };
+
+        const drawDefaultPlaceholder = (ctx) => {
+            ctx.fillStyle = "#f1f5f9";
+            ctx.fillRect(30, 290, 540, 380);
+            ctx.fillStyle = "#475569";
+            ctx.font = "bold 14px Inter, sans-serif";
+            ctx.fillText("Official Receipt Scan Verified (Digital Archive Log)", 70, 480);
+        };
+
+        for (let i = 0; i < displayExpenses.length; i++) {
+            const item = displayExpenses[i];
+            const dataUrl = await generateReceiptCanvas(item);
+            const base64Data = dataUrl.replace(/^data:image\/jpeg;base64,/, "");
+            const fileName = `${item.prog || 'DEPT'}_${item.id || i}_${(item.orNum || item.or_number || 'OR').replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+            imgFolder.file(fileName, base64Data, { base64: true });
+        }
+
+        let csvContent = "Transaction ID,Date,Program,Particulars,Category,Amount,OR Number,Status\n";
+        displayExpenses.forEach(item => {
+            let safePart = (item.part || item.particulars || '').replace(/"/g, '""');
+            let row = [
+                item.id || '',
+                item.date ? item.date.split('T')[0] : '',
+                item.prog || item.program || '',
+                `"${safePart}"`,
+                item.cat || item.category || '',
+                item.amount || 0,
+                item.orNum || item.or_number || '',
+                item.status || ''
+            ];
+            csvContent += row.join(",") + "\n";
+        });
+        zip.file("EMC_FinTrack_Summary_Ledger.csv", csvContent);
+
+        const content = await zip.generateAsync({ type: "blob" });
+        stopBouncingLoading();
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = `EMC-FinTrack-Ledger-Pictures-ZIP-${new Date().toISOString().split('T')[0]}.zip`;
+        link.click();
+        
+        showCustomConfirm("Success", "All ledger receipts have been successfully downloaded as images inside the ZIP file!", null, false);
+    } catch (err) {
+        stopBouncingLoading();
+        showCustomConfirm("Error", "Failed to create the ZIP archive of the images.", null, true);
+    }
+}
+    async function renderAnnouncements() {
+        const container = document.getElementById('announcements-container');
+        if (!container) return;
+        try {
+            const res = await fetch('/api/announcements');
+            const announcements = await res.json();
+            const canDeleteAnn = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'System Administrator' || currentUser.role === 'adviser'));
+            const isAdviser = (currentUser && currentUser.role === 'adviser');
+
+            let html = '';
+            if (Array.isArray(announcements)) {
+                announcements.forEach(ann => {
+                    if (currentUser && currentUser.program && currentUser.program !== 'ALL' && currentUser.role !== 'admin' && currentUser.role !== 'System Administrator') {
+                        let uProg = currentUser.program;
+                        if (uProg === 'BSED') uProg = 'BSED/BEED';
+                        if (ann.targetProgram !== 'ALL' && ann.targetProgram !== uProg) return;
+                    }
+
+                    let confirmationsHtml = '';
+                    if (isAdviser) {
+                        const myConf = (ann.confirmations || []).find(c => c.email === currentUser.email || c.email === currentUser.name);
+                        const myStatus = myConf ? myConf.action : 'None';
+                        confirmationsHtml = `
+                            <div class="mt-3 pt-2 border-t border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                                <span class="text-slate-400">Adviser Status: <strong class="${myStatus === 'Confirm' ? 'text-emc-400' : (myStatus === 'Decline' ? 'text-rose-400' : 'text-amber-400')}">${myStatus}</strong></span>
+                                <div class="flex gap-2 w-full sm:w-auto justify-end">
+                                    <button onclick="confirmAnnouncement(${ann.id}, 'Confirm')" class="px-2.5 py-1 bg-emc-600 hover:bg-emc-700 text-white font-bold rounded shadow-sm">Confirm</button>
+                                    <button onclick="confirmAnnouncement(${ann.id}, 'Decline')" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded shadow-sm">Decline</button>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                        <div class="bg-slate-800/80 border border-slate-700 p-3 sm:p-4 rounded-xl relative">
+                            <div class="flex justify-between items-center mb-1">
+                                <h4 class="font-bold text-emc-400 text-xs sm:text-sm">📢 [${ann.targetProgram || 'ALL'}] ${ann.title}</h4>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-[10px] sm:text-[11px] text-slate-400">${ann.date || 'Recent'} • By: ${ann.author}</span>
+                                    ${canDeleteAnn ? `<button onclick="deleteAnnouncement(${ann.id})" class="text-rose-400 hover:text-rose-300 text-xs"><i class="fa-solid fa-trash"></i></button>` : ''}
+                                </div>
+                            </div>
+                            <p class="text-xs text-slate-300 leading-relaxed">${ann.body}</p>
+                            ${confirmationsHtml}
+                        </div>
+                    `;
+                });
+            }
+            container.innerHTML = html || `<p class="text-xs text-slate-400 text-center py-4">No announcements.</p>`;
+        } catch (err) {}
+    }
+
+    async function loadContacts() {
+        try {
+            const res = await fetch('/api/users');
+            allUsersList = await res.json();
+            renderRecentChatsList();
+        } catch (err) {}
+    }
+async function renderRecentChatsList() {
+    const container = document.getElementById('contacts-list');
+    if (!container) return;
+    
+    if (typeof unreadMessagesMap === 'undefined') {
+        window.unreadMessagesMap = {};
+    }
+
+    try {
+        const res = await fetch('/api/messages');
+        const messages = await res.json();
+        
+        const activeChatsMap = new Map();
+
+        if (currentUser && Array.isArray(messages)) {
+            const myEmail = (currentUser.email || currentUser.name || '').trim().toLowerCase();
+            messages.forEach(m => {
+                const sender = (m.sender || '').trim().toLowerCase();
+                const recipient = (m.recipient || '').trim().toLowerCase();
+                
+                if (sender === myEmail || recipient === myEmail) {
+                    const otherUser = sender === myEmail ? recipient : sender;
+                    if (otherUser) {
+                        const msgTime = new Date(m.timestamp || m.created_at || m.id || 0).getTime();
+                        
+                        if (!activeChatsMap.has(otherUser) || msgTime > activeChatsMap.get(otherUser).time) {
+                            activeChatsMap.set(otherUser, {
+                                text: m.text,
+                                time: msgTime
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        // Pagsunud-sunod: Ang may pinakabagong mensahe ang laging nasa pinakataas
+        const sortedActiveUsers = Array.from(activeChatsMap.entries()).sort((a, b) => b[1].time - a[1].time);
+
+        let html = '';
+        sortedActiveUsers.forEach(([uEmail, chatData]) => {
+            const u = allUsersList.find(user => (user.email || '').trim().toLowerCase() === uEmail);
+            if (!u) return;
+
+            const myEmail = (currentUser?.email || currentUser?.name || '').trim().toLowerCase();
+            if (currentUser && uEmail === myEmail) return;
+
+            const isSelected = (activeChatRecipient || '').trim().toLowerCase() === uEmail;
+            
+            const rawUnreadNum = unreadMessagesMap[uEmail] || unreadMessagesMap[u.email] || 0;
+            
+            // Logic sa badge: 1 kung isa, 5 kung lima, at 9+ kapag lumampas ng 9
+            const unreadNumDisplay = rawUnreadNum > 9 ? '9+' : rawUnreadNum;
+
+            const lastText = chatData.text || 'No messages';
+            
+            // Pag-bold ng pangalan at recent message habang may unread
+            const isUnread = rawUnreadNum > 0;
+            const nameClass = isUnread ? 'font-extrabold text-white text-xs' : (isSelected ? 'font-bold text-white text-xs' : 'font-semibold text-slate-300 text-xs');
+            const textClass = isUnread ? 'font-bold text-slate-100 text-[11px]' : 'text-slate-400 text-[11px]';
+
+            html += `
+                <div onclick="selectChatRecipient('${u.email}', '${u.name}', '${u.title}')" class="p-3 rounded-xl border ${isSelected ? 'border-emc-600 bg-white dark:bg-slate-800 shadow-sm' : 'border-slate-800 bg-slate-950 hover:bg-slate-900'} cursor-pointer transition-all flex items-center justify-between select-none">
+                    <div class="overflow-hidden pr-2 w-full pointer-events-none">
+                        <div class="flex items-center justify-between w-full">
+                            <p class="truncate ${isSelected ? 'font-bold text-slate-900 dark:text-white text-xs' : nameClass}">${u.name}</p>
+                            ${rawUnreadNum > 0 ? `<span class="px-2 py-0.5 bg-rose-600 text-white font-bold text-[10px] rounded-full shrink-0">${unreadNumDisplay}</span>` : ''}
+                        </div>
+                        <p class="${isSelected ? 'text-slate-600 dark:text-slate-300 text-[11px]' : textClass} truncate mt-0.5">${lastText}</p>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html || `<p class="text-[11px] text-slate-400 text-center py-8">No active chats.</p>`;
+    } catch (err) {
+        console.error("Error loading active chats:", err);
+    }
+}function renderChatMessages(messagesArray) {
+    const container = document.getElementById('chat-messages-container');
+    if (!container) return;
+
+    let html = '';
+    
+    if (Array.isArray(messagesArray)) {
+        // Huwag nang i-reverse kung naka-ascending na; o i-sort natin nang maayos mula pinakaluma hanggang pinakabago
+        const sortedMessages = [...messagesArray].sort((a, b) => {
+            if (a.id && b.id) return a.id - b.id;
+            return new Date(a.timestamp || a.created_at || 0) - new Date(b.timestamp || b.created_at || 0);
+        });
+
+        sortedMessages.forEach(m => {
+            const isMyMessage = (m.sender || '').trim().toLowerCase() === (currentUser?.email || currentUser?.name || '').trim().toLowerCase();
+            
+            if (isMyMessage) {
+                html += `
+                    <div class="flex flex-col items-end mb-3">
+                        <div class="max-w-[75%] px-4 py-2.5 rounded-2xl bg-emc-600 text-white text-xs shadow-sm">
+                            <p class="break-words">${m.text}</p>
+                        </div>
+                        <span class="text-[10px] text-slate-400 mt-1 mr-1">${m.timestamp || ''}</span>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="flex flex-col items-start mb-3">
+                        <div class="max-w-[75%] px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white text-xs shadow-sm">
+                            <p class="break-words">${m.text}</p>
+                        </div>
+                        <span class="text-[10px] text-slate-400 mt-1 ml-1">${m.timestamp || ''}</span>
+                    </div>
+                `;
+            }
+        });
+    }
+
+    container.innerHTML = html || `<div class="flex items-center justify-center h-full text-slate-400 text-xs">No messages yet. Start the conversation!</div>`;
+
+    // AUTO-SCROLL SA BABA: Awtomatikong hihilahin pababa para makita agad ang pinakabagong mensahe
+    setTimeout(() => {
+        container.scrollTop = container.scrollHeight;
+    }, 60);
+}
+
+    function filterUserSearch() {
+        const query = document.getElementById('user-search-input').value.trim().toLowerCase();
+        const dropdown = document.getElementById('search-results-dropdown');
+        if (!dropdown) return;
+        if (!query) { dropdown.classList.add('hidden'); return; }
+
+        const matches = allUsersList.filter(u => {
+            if (currentUser && u.email.toLowerCase() === currentUser.email?.toLowerCase()) return false;
+            return u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query);
+        });
+
+        dropdown.innerHTML = matches.length === 0 ? `<div class="p-3 text-xs text-slate-400 text-center">No match</div>` : matches.map(u => `
+            <div onclick="selectUserFromSearch('${u.email}', '${u.name}', '${u.title}')" class="p-2.5 hover:bg-emc-50 dark:hover:bg-slate-800 cursor-pointer">
+                <p class="font-bold text-slate-800 dark:text-white text-xs">${u.name}</p>
+                <span class="text-[9px] text-slate-500 uppercase">${u.email}</span>
+            </div>
+        `).join('');
+        dropdown.classList.remove('hidden');
+    }
+
+    function selectUserFromSearch(email, name, title) {
+        document.getElementById('search-results-dropdown').classList.add('hidden');
+        document.getElementById('user-search-input').value = '';
+        activeChatsSet.add(email.toLowerCase());
+        renderRecentChatsList();
+        selectChatRecipient(email, name, title);
+    }
+
+    function selectChatRecipient(email, displayName, title) {
+        activeChatRecipient = email;
+        
+        // Kapag binuksan ang chat, i-reset na sa 0 ang unread badge at tanggalin ang bold
+        if (typeof unreadMessagesMap === 'undefined') {
+            window.unreadMessagesMap = {};
+        }
+        unreadMessagesMap[email.toLowerCase()] = 0;
+
+        document.getElementById('active-chat-title').innerText = `Chat with: ${displayName}`;
+        document.getElementById('active-chat-subtitle').innerText = `${title || 'User'} • ${email}`;
+        toggleMobileMsgView(false);
+        renderRecentChatsList();
+        loadPrivateMessages();
+    }
+
+    function toggleMobileMsgView(showContacts) {
+        const contactsPanel = document.getElementById('msg-contacts-panel');
+        const chatPanel = document.getElementById('msg-chat-panel');
+        if (window.innerWidth < 768) {
+            if (showContacts) { contactsPanel.classList.remove('hidden'); chatPanel.classList.add('hidden'); }
+            else { contactsPanel.classList.add('hidden'); chatPanel.classList.remove('hidden'); }
+        }
+    }
+
+   async function loadPrivateMessages() {
+    if (!activeChatRecipient || !currentUser) return;
+    try {
+        const res = await fetch('/api/messages');
+        const messages = await res.json();
+        const container = document.getElementById('chat-messages-container');
+        
+        const myEmail = (currentUser.email || '').toLowerCase();
+        const target = activeChatRecipient.toLowerCase();
+        
+        // 1. Salain ang mga mensahe para sa aktibong kausap lamang
+        const chatMessages = messages.filter(m => {
+            const sender = (m.sender || '').toLowerCase();
+            const recipient = (m.recipient || '').toLowerCase();
+            return (sender === myEmail && recipient === target) || (sender === target && recipient === myEmail);
+        });
+
+        // 2. I-sort para ang pinakaluma ay nasa taas at ang pinakabago ay nasa baba
+        chatMessages.sort((a, b) => {
+            if (a.id && b.id) return a.id - b.id;
+            return new Date(a.timestamp || a.created_at || 0) - new Date(b.timestamp || b.created_at || 0);
+        });
+
+        let html = '';
+        chatMessages.forEach(m => {
+            const sender = (m.sender || '').toLowerCase();
+            const isMe = (sender === myEmail);
+            html += `
+                <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-fade-in">
+                    <div class="max-w-[75%] px-4 py-2.5 rounded-2xl text-xs shadow-sm ${isMe ? 'bg-emc-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-100 border border-slate-700 rounded-tl-none'}">
+                        <p class="whitespace-pre-wrap leading-relaxed">${m.text}</p>
+                    </div>
+                    <span class="text-[9px] text-slate-500 mt-1 px-1">${m.time || ''}</span>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html || `<div class="flex items-center justify-center h-full text-slate-500 text-xs"><p>No messages yet. Start the conversation!</p></div>`;
+        
+        // 3. Auto-scroll sa pinakababa para makita agad ang pinakabagong mensahe
+        container.scrollTop = container.scrollHeight;
+    } catch (err) {
+        console.error("Error loading messages:", err);
+    }
+}
+
+    async function sendPrivateMessage(e) {
+        e.preventDefault();
+        if (!activeChatRecipient || !currentUser) return;
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const messageData = { sender: currentUser.email, recipient: activeChatRecipient, text };
+        try {
+            await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(messageData)
+            });
+            input.value = '';
+            socket.emit('send_message', messageData);
+            activeChatsSet.add(activeChatRecipient.toLowerCase());
+            renderRecentChatsList();
+            loadPrivateMessages();
+        } catch (err) {}
+    }
+
+    async function refreshSystemData() {
+        const mainDashboardWrapper = document.getElementById('dashboard-main-skeleton-wrapper');
+        if (mainDashboardWrapper) mainDashboardWrapper.classList.add('skeleton-loader');
+
+        try {
+            await fetch('/api/expenses');
+            if (currentUser && (currentUser.role === 'adviser' || currentUser.role === 'admin' || currentUser.role === 'System Administrator')) {
+                await loadPendingUsers();
+            }
+            await new Promise(r => setTimeout(r, 600));
+            if (mainDashboardWrapper) mainDashboardWrapper.classList.remove('skeleton-loader');
+
+            renderDashboardBudgets();
+            renderLedgerAndAudit();
+            renderAnnouncements();
+            loadSystemLogo();
+        } catch (err) {
+            if (mainDashboardWrapper) mainDashboardWrapper.classList.remove('skeleton-loader');
+            location.reload();
+        }
+    }  
+
+    function viewReceipt(id, orNum, particulars, amount, date, receiptFile) {
+        const modal = document.getElementById('receipt-modal');
+        const titleEl = document.getElementById('receipt-modal-title');
+        const orEl = document.getElementById('receipt-modal-or');
+        const amountEl = document.getElementById('receipt-modal-amount');
+        const partEl = document.getElementById('receipt-modal-particulars');
+        const dateEl = document.getElementById('receipt-modal-date');
+        const noteEl = document.getElementById('receipt-modal-note');
+        const container = document.getElementById('receipt-content-container');
+        
+        if (titleEl) titleEl.innerText = `Receipt Proof: ${id || 'TRX'}`;
+        if (orEl) orEl.innerText = orNum || 'N/A';
+        if (amountEl) amountEl.innerText = `₱${Number(amount || 0).toLocaleString()}`;
+        if (partEl) partEl.innerText = particulars || 'N/A';
+        if (dateEl) dateEl.innerText = date ? date.split('T')[0] : 'N/A';
+        if (noteEl) noteEl.innerText = `Verified transaction entry for ${particulars}.`;
+
+        currentReceiptData = {
+            id: id || 'TRX',
+            orNum: orNum || 'N/A',
+            particulars: particulars || 'N/A',
+            amount: Number(amount || 0).toLocaleString(),
+            date: date ? date.split('T')[0] : 'N/A',
+            imageUrl: (receiptFile && receiptFile !== 'null' && receiptFile !== 'undefined') ? `/uploads/${receiptFile}` : null
+        };
+
+        if (currentReceiptData.imageUrl && container) {
+            container.innerHTML = `<img id="receipt-preview-img" src="${currentReceiptData.imageUrl}" class="max-w-full h-auto rounded shadow mx-auto max-h-64 object-contain" alt="Receipt Proof" crossorigin="anonymous">`;
+        } else if (container) {
+            container.innerHTML = `
+                <i class="fa-solid fa-file-invoice text-4xl text-slate-400"></i>
+                <p class="font-bold text-slate-800 dark:text-white text-xs">Official Receipt Scan Verified</p>
+                <p class="text-[10px] text-slate-400">EMC Digital Financial Archive • Tamper-proof Log</p>
+            `;
+        }
+        
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    function downloadReceiptPictureWithDetails() {
+        if (!currentReceiptData) return;
+
+        startBouncingLoading("Generating Receipt Image...");
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 600;
+        canvas.height = 750;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(0, 0, canvas.width, 90);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 20px Inter, sans-serif";
+        ctx.fillText("EASTERN MINDORO COLLEGE, INC.", 30, 40);
+
+        ctx.fillStyle = "#16a34a";
+        ctx.font = "bold 13px Inter, sans-serif";
+        ctx.fillText("EMC-FINTRACK OFFICIAL TRANSACTION RECEIPT PROOF", 30, 65);
+
+        ctx.fillStyle = "#f8fafc";
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = 1;
+        ctx.fillRect(30, 110, 540, 160);
+        ctx.strokeRect(30, 110, 540, 160);
+
+        ctx.fillStyle = "#64748b";
+        ctx.font = "bold 11px Inter, sans-serif";
+        ctx.fillText("OR NUMBER:", 50, 140);
+        ctx.fillText("AMOUNT:", 320, 140);
+
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "bold 16px Inter, sans-serif";
+        ctx.fillText(currentReceiptData.orNum, 50, 165);
+
+        ctx.fillStyle = "#16a34a";
+        ctx.font = "bold 18px Inter, sans-serif";
+        ctx.fillText("₱" + currentReceiptData.amount, 320, 165);
+
+        ctx.fillStyle = "#64748b";
+        ctx.font = "bold 11px Inter, sans-serif";
+        ctx.fillText("PARTICULARS / VENDOR:", 50, 205);
+        ctx.fillText("TRANSACTION DATE:", 320, 205);
+
+        ctx.fillStyle = "#1e293b";
+        ctx.font = "14px Inter, sans-serif";
+        ctx.fillText(currentReceiptData.particulars, 50, 228);
+        ctx.fillText(currentReceiptData.date, 320, 228);
+
+        if (currentReceiptData.imageUrl) {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = function() {
+                ctx.fillStyle = "#f1f5f9";
+                ctx.fillRect(30, 290, 540, 380);
+                
+                let hRatio = 540 / img.width;
+                let vRatio = 380 / img.height;
+                let ratio = Math.min(hRatio, vRatio);
+                let centerShiftX = (540 - img.width * ratio) / 2;
+                let centerShiftY = (380 - img.height * ratio) / 2;
+                
+                ctx.drawImage(img, 0, 0, img.width, img.height, 30 + centerShiftX, 290 + centerShiftY, img.width * ratio, img.height * ratio);
+                
+                finalizeDownload(canvas);
+            };
+            img.onerror = function() {
+                drawPlaceholderText(ctx);
+                finalizeDownload(canvas);
+            };
+            img.src = currentReceiptData.imageUrl;
+        } else {
+            drawPlaceholderText(ctx);
+            finalizeDownload(canvas);
+        }
+    }
+
+    function drawPlaceholderText(ctx) {
+        ctx.fillStyle = "#f1f5f9";
+        ctx.fillRect(30, 290, 540, 380);
+        ctx.fillStyle = "#475569";
+        ctx.font = "bold 14px Inter, sans-serif";
+        ctx.fillText("Official Receipt Scan Verified (Digital Archive Log)", 70, 480);
+    }
+
+    function finalizeDownload(canvas) {
+        stopBouncingLoading();
+        const link = document.createElement('a');
+        link.download = `EMC-Receipt-${currentReceiptData.orNum}.jpg`;
+        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        link.click();
+    }
+
+    function closeReceiptModal() {
+        document.getElementById('receipt-modal').classList.add('hidden');
+    }
+</script>
+
+</body>
+</html>
